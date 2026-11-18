@@ -1,5 +1,14 @@
 # Historial de cambios
 
+## 0.6.0 · 18/11/2026
+
+- Pantalla de Inicio: botón grande para armar un documento nuevo y últimos PDF armados.
+- Pestaña Historial: todos los PDF armados, con buscador, «Abrir», «Abrir la carpeta» y «Volver a armar».
+- Reordenar con flechas o arrastrando; tacho para quitar, con «Deshacer» durante unos segundos.
+- Nombre del PDF editable antes de guardar; se propone la carpeta `exportaciones` del programa.
+- Vista previa en miniaturas de dos columnas, con la cantidad de páginas de cada documento.
+- «Cómo se usa» rediseñado: tres pasos ilustrados, preguntas frecuentes y qué hacer si algo no anda.
+
 ## 0.5.0 · 18/11/2026
 
 - Vista previa: un panel a la derecha muestra las páginas del PDF final mientras se arma, también las de los documentos de Word.

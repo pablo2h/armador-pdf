@@ -353,9 +353,59 @@ fn anotar_en_historial(entradas: &[PathBuf], salida: &Path, paginas: usize) {
         paginas,
         nombres.join(" + ")
     );
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(ruta) {
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&ruta) {
         let _ = f.write_all(renglon.as_bytes());
     }
+    // Copia estructurada, que el programa lee para mostrar el historial y «Volver a armar».
+    let mut campos = vec![chrono::Local::now().timestamp().to_string(), paginas.to_string(), salida.display().to_string()];
+    campos.extend(entradas.iter().map(|e| std::path::absolute(e).unwrap_or_else(|_| e.clone()).display().to_string()));
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(ruta.with_extension("tsv")) {
+        let _ = f.write_all(format!("{}\n", campos.join("\t")).as_bytes());
+    }
+}
+
+/// Un PDF armado: cuándo, dónde quedó y con qué documentos.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Registro {
+    /// Segundos desde 1970 (hora del sistema).
+    pub cuando: i64,
+    pub paginas: usize,
+    pub salida: PathBuf,
+    pub entradas: Vec<PathBuf>,
+}
+
+/// Interpreta un renglón del historial estructurado. Los renglones dañados se ignoran.
+pub fn interpretar_registro(renglon: &str) -> Option<Registro> {
+    let mut campos = renglon.trim_end_matches(['\r', '\n']).split('\t');
+    let cuando = campos.next()?.parse().ok()?;
+    let paginas = campos.next()?.parse().ok()?;
+    let salida = PathBuf::from(campos.next().filter(|s| !s.is_empty())?);
+    let entradas: Vec<PathBuf> = campos.filter(|c| !c.is_empty()).map(PathBuf::from).collect();
+    (!entradas.is_empty()).then_some(Registro { cuando, paginas, salida, entradas })
+}
+
+/// Historial completo, del más nuevo al más viejo.
+pub fn leer_historial() -> Vec<Registro> {
+    let Some(ruta) = ruta_del_historial() else { return Vec::new() };
+    let texto = std::fs::read_to_string(ruta.with_extension("tsv")).unwrap_or_default();
+    let mut todos: Vec<Registro> = texto.lines().filter_map(interpretar_registro).collect();
+    todos.reverse();
+    todos
+}
+
+/// Borra el historial (no toca los PDF armados).
+pub fn vaciar_historial() {
+    if let Some(ruta) = ruta_del_historial() {
+        let _ = std::fs::remove_file(ruta.with_extension("tsv"));
+        let _ = std::fs::remove_file(ruta);
+    }
+}
+
+/// Carpeta «exportaciones» junto al programa: es donde se propone guardar los PDF.
+pub fn carpeta_de_exportaciones() -> Option<PathBuf> {
+    let carpeta = std::env::current_exe().ok()?.parent()?.join("exportaciones");
+    std::fs::create_dir_all(&carpeta).ok()?;
+    Some(carpeta)
 }
 
 #[cfg(test)]
@@ -459,6 +509,16 @@ mod pruebas {
     }
 
     #[test]
+    fn interpreta_renglones_del_historial() {
+        let r = interpretar_registro("1795000000\t14\t/tmp/final.pdf\t/a/nota.docx\t/a/proyecto.pdf\n").unwrap();
+        assert_eq!((r.cuando, r.paginas, r.entradas.len()), (1795000000, 14, 2));
+        assert_eq!(r.salida, PathBuf::from("/tmp/final.pdf"));
+        for malo in ["", "texto suelto", "abc\t1\t/x.pdf\t/a.pdf", "1\t2\t/x.pdf", "1\t2\t\t/a.pdf"] {
+            assert!(interpretar_registro(malo).is_none(), "{malo:?}");
+        }
+    }
+
+    #[test]
     fn no_modifica_los_originales() {
         let d = carpeta("originales");
         let a = d.join("a.pdf");
@@ -495,5 +555,13 @@ mod pruebas {
         assert_eq!(avisos.iter().filter(|m| m.starts_with("Pasando a PDF")).count(), 2);
         let h = std::fs::read_to_string(&historial).unwrap();
         assert!(h.contains("5 páginas") && h.contains("nota de prueba.docx + proyecto.pdf + nota-vieja.doc"), "{h}");
+
+        // El historial estructurado permite volver a armar con los mismos documentos.
+        let registros = leer_historial();
+        assert_eq!(registros.len(), 1);
+        assert_eq!(registros[0].paginas, 5);
+        assert_eq!(registros[0].salida, salida);
+        assert_eq!(registros[0].entradas.len(), 3);
+        assert!(registros[0].entradas.iter().all(|e| e.is_file()));
     }
 }

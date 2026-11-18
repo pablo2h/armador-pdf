@@ -6,7 +6,7 @@ Programa de escritorio para oficina que **junta varios documentos en un solo PDF
 
 Funciona en **Windows y Linux**, sin instalar nada. Desarrollado por **Horno de Barro**.
 
-![Pantalla principal con dos documentos cargados](docs/2-lista.png)
+![Armar documento, con la lista y la vista previa](docs/2-lista.png)
 
 ## Descargar
 
@@ -23,27 +23,37 @@ Todas las versiones están en [Releases](https://github.com/pablo2h/armador-pdf/
 
 ## Cómo se usa
 
+Al abrirlo, la pantalla de **Inicio** tiene un botón grande para armar un documento nuevo y la lista de los últimos PDF armados.
+
+![Pantalla de inicio](docs/1-inicio.png)
+
 ### 1. Agregá los documentos
 
 Tocá **Agregar documentos…** y elegí los archivos, o arrastralos desde una carpeta y soltalos sobre la ventana. Sirven archivos PDF y de Word (`.doc`, `.docx`).
 
-![Pantalla vacía, lista para agregar documentos](docs/1-vacio.png)
-
 ### 2. Revisá el orden
 
-Cada documento aparece con un número. El número 1 queda al principio del PDF final. Con **Subir** y **Bajar** se cambia el lugar; con **Quitar** se saca de la lista (el archivo original no se borra) y con **Ver** se abre para revisarlo.
+Cada documento aparece con un número; el número 1 queda al principio del PDF final. Se reordenan con las **flechas** o arrastrándolos desde el asa de la izquierda. El **tacho** quita un documento de la lista (el archivo original no se borra, y durante unos segundos se puede deshacer). **Ver** lo abre para revisarlo.
 
 A la derecha, la **vista previa** muestra las páginas del PDF final a medida que se arma, incluidas las de los documentos de Word.
 
+![Armar documento, con la lista y la vista previa](docs/2-lista.png)
+
 ### 3. Guardá el PDF final
 
-Tocá **Guardar PDF final…**, elegí carpeta y nombre, y esperá el aviso **Listo**. Desde ahí se puede abrir el PDF o su carpeta.
+Escribí el **nombre del PDF** (viene sugerido) y tocá **Guardar PDF final…**. Se abre la carpeta `exportaciones` del programa; ahí mismo podés elegir otra. Cuando aparece el aviso **Listo**, se puede abrir el PDF o su carpeta.
 
 ![Aviso de que el PDF se guardó](docs/3-listo.png)
 
 Si algo falla, el programa dice qué pasó y qué hacer:
 
 ![Aviso de error por un PDF con contraseña](docs/4-error.png)
+
+### Historial
+
+La pestaña **Historial** guarda todos los PDF armados en esa computadora, con fecha, páginas y documentos usados. **Volver a armar** carga los mismos documentos en el mismo orden: sirve cuando se corrige la nota y hay que rehacer el PDF.
+
+![Historial de documentos armados](docs/5-historial.png)
 
 ### Si el documento está en Google Docs
 
@@ -52,12 +62,11 @@ Abrilo y andá a **Archivo → Descargar → Documento PDF (.pdf)**, y agregá e
 ### Para tener en cuenta
 
 - Los documentos originales **nunca se modifican ni se borran**.
-- Cada PDF armado queda anotado en `historial.txt`, dentro de la carpeta del programa: fecha, dónde se guardó y con qué documentos.
 - Los PDF con contraseña no se pueden unir.
 - La primera vez que se pasa un Word a PDF puede tardar hasta un minuto.
 - El mismo instructivo está dentro del programa, en la pestaña **Cómo se usa**.
 
-![Instructivo dentro del programa](docs/5-ayuda.png)
+![Instructivo dentro del programa](docs/6-ayuda.png)
 
 ## Marca de la organización
 
@@ -85,7 +94,7 @@ logo     = logo.png
 
 Para aplicar otra marca alcanza con cambiar esa carpeta; no hay que recompilar. Si la carpeta no existe, el programa usa el aspecto neutro de las capturas de arriba. En [`marcas/ejemplo`](marcas/ejemplo) hay un paquete de muestra; así se ve aplicado:
 
-![El programa con la marca de ejemplo aplicada](docs/6-con-marca.png)
+![El programa con la marca de ejemplo aplicada](docs/7-con-marca.png)
 
 ## Qué hace y qué no
 
@@ -95,7 +104,7 @@ Para aplicar otra marca alcanza con cambiar esa carpeta; no hay que recompilar. 
 | Pasa Word (`.doc`, `.docx`), ODT y RTF a PDF | Renumerar folios ni agregar numeración |
 | Funciona sin internet y sin instalación | Conservar marcadores ni formularios rellenables de los PDF originales |
 | Muestra una vista previa del PDF final mientras se arma | |
-| Lleva un historial de lo armado | Abrir PDF protegidos con contraseña |
+| Lleva un historial y permite volver a armar un PDF anterior | Abrir PDF protegidos con contraseña |
 
 ## Estado de las pruebas
 
@@ -154,7 +163,7 @@ cargo build --release --target x86_64-pc-windows-gnu
 cargo test --release
 ```
 
-Son doce pruebas: lectura y contraste de la marca, formatos aceptados, orden de las páginas, tamaño de página heredado, documento repetido, errores, que los originales no se toquen y una prueba de punta a punta que pasa un `.docx` y un `.doc` a PDF con LibreOffice real y los une con otro PDF. Esa última se omite si LibreOffice no está instalado.
+Son catorce pruebas: historial, nombre del archivo, lectura y contraste de la marca, formatos aceptados, orden de las páginas, tamaño de página heredado, documento repetido, errores, que los originales no se toquen y una prueba de punta a punta que pasa un `.docx` y un `.doc` a PDF con LibreOffice real y los une con otro PDF. Esa última se omite si LibreOffice no está instalado.
 
 En cada cambio, GitHub las corre automáticamente **en Linux y en Windows**, con LibreOffice instalado en ambos: es la pestaña [Actions](https://github.com/pablo2h/armador-pdf/actions).
 
@@ -172,7 +181,7 @@ Las imágenes de este README las genera el propio programa:
 ARMADOR_MARCA=marcas/ejemplo ARMADOR_DEMO=lista ARMADOR_CAPTURA=captura.ppm target/release/armador-pdf
 ```
 
-`ARMADOR_DEMO` admite `lista`, `listo`, `error`, `avance` y `ayuda`.
+`ARMADOR_DEMO` admite `inicio`, `historial`, `vacio`, `lista`, `listo`, `error`, `avance` y `ayuda`.
 
 ## Créditos y licencias
 

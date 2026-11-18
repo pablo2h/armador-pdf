@@ -1,8 +1,8 @@
 1 ICON "icono.ico"
 
 1 VERSIONINFO
-FILEVERSION 0,5,0,0
-PRODUCTVERSION 0,5,0,0
+FILEVERSION 0,6,0,0
+PRODUCTVERSION 0,6,0,0
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
@@ -11,8 +11,8 @@ BEGIN
       VALUE "CompanyName", "Horno de Barro"
       VALUE "FileDescription", "Armador de PDF"
       VALUE "ProductName", "Armador de PDF"
-      VALUE "FileVersion", "0.5.0"
-      VALUE "ProductVersion", "0.5.0"
+      VALUE "FileVersion", "0.6.0"
+      VALUE "ProductVersion", "0.6.0"
       VALUE "LegalCopyright", "Horno de Barro. Licencia MIT."
     END
   END

@@ -1,6 +1,6 @@
 [package]
 name = "armador-pdf"
-version = "0.5.0"
+version = "0.6.0"
 license = "MIT"
 description = "Junta varios documentos en un solo PDF"
 authors = ["Horno de Barro"]
