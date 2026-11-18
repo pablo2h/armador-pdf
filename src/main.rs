@@ -3,8 +3,32 @@
 mod nucleo;
 
 use eframe::egui;
+use egui::{Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, RichText, Stroke};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, channel};
+
+// --- Sistema de diseño «Armador de PDF» (base celeste del Concejo Deliberante) ---
+const FONDO: Color32 = Color32::from_rgb(0xF4, 0xF6, 0xF8);
+const SUPERFICIE: Color32 = Color32::WHITE;
+const TINTA: Color32 = Color32::from_rgb(0x1B, 0x27, 0x33);
+const TINTA_SUAVE: Color32 = Color32::from_rgb(0x4A, 0x58, 0x66);
+const BORDE: Color32 = Color32::from_rgb(0x7A, 0x87, 0x94);
+const BORDE_SUAVE: Color32 = Color32::from_rgb(0xDD, 0xE2, 0xE8);
+const CELESTE: Color32 = Color32::from_rgb(0x29, 0x9D, 0xBE);
+const PRIMARIO: Color32 = Color32::from_rgb(0x14, 0x60, 0x7A);
+const PRIMARIO_FONDO: Color32 = Color32::from_rgb(0xE6, 0xF4, 0xF8);
+const EXITO: Color32 = Color32::from_rgb(0x1E, 0x7A, 0x46);
+const EXITO_FONDO: Color32 = Color32::from_rgb(0xE6, 0xF4, 0xEC);
+const ERROR: Color32 = Color32::from_rgb(0xB3, 0x26, 0x1E);
+const ERROR_FONDO: Color32 = Color32::from_rgb(0xFB, 0xE9, 0xE7);
+
+const MARGEN: i8 = 24; // espacio-4
+const RADIO_MD: u8 = 10;
+const RADIO_SM: u8 = 6;
+
+fn negrita(tam: f32) -> FontId {
+    FontId::new(tam, FontFamily::Name("negrita".into()))
+}
 
 fn main() -> eframe::Result {
     // Modo consola: armador-pdf --salida final.pdf nota.docx proyecto.pdf
@@ -24,24 +48,53 @@ fn main() -> eframe::Result {
     let opciones = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([760.0, 640.0])
-            .with_min_inner_size([620.0, 520.0]),
+            .with_min_inner_size([680.0, 560.0]),
         ..Default::default()
     };
-    eframe::run_native("Armador de PDF", opciones, Box::new(|cc| {
-            cc.egui_ctx.set_theme(egui::Theme::Light);
-            cc.egui_ctx.all_styles_mut(|st| {
-                for f in st.text_styles.values_mut() {
-                    f.size *= 1.2;
-                }
-                st.spacing.button_padding = egui::vec2(10.0, 6.0);
-                st.visuals.panel_fill = egui::Color32::from_rgb(244, 246, 248);
-                st.visuals.selection.bg_fill = egui::Color32::from_rgb(214, 236, 243);
-                st.visuals.selection.stroke.color = PRIMARIO;
-                st.visuals.widgets.noninteractive.fg_stroke.color = TINTA;
-                st.spacing.item_spacing = egui::vec2(8.0, 6.0);
-            });
+    eframe::run_native(
+        "Armador de PDF",
+        opciones,
+        Box::new(|cc| {
+            aplicar_tema(&cc.egui_ctx);
             Ok(Box::new(App::default()))
-        }),)
+        }),
+    )
+}
+
+fn aplicar_tema(ctx: &egui::Context) {
+    let mut fuentes = egui::FontDefinitions::default();
+    fuentes.font_data.insert(
+        "atkinson".into(),
+        egui::FontData::from_static(include_bytes!("../assets/AtkinsonHyperlegible-Regular.ttf")).into(),
+    );
+    fuentes.font_data.insert(
+        "atkinson-negrita".into(),
+        egui::FontData::from_static(include_bytes!("../assets/AtkinsonHyperlegible-Bold.ttf")).into(),
+    );
+    let mut resto = fuentes.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
+    fuentes.families.entry(FontFamily::Proportional).or_default().insert(0, "atkinson".into());
+    resto.insert(0, "atkinson-negrita".into());
+    fuentes.families.insert(FontFamily::Name("negrita".into()), resto);
+    ctx.set_fonts(fuentes);
+
+    ctx.set_theme(egui::Theme::Light);
+    ctx.all_styles_mut(|st| {
+        use egui::TextStyle::*;
+        st.text_styles.insert(Body, FontId::proportional(17.0));
+        st.text_styles.insert(Button, negrita(18.0));
+        st.text_styles.insert(Heading, negrita(28.0));
+        st.text_styles.insert(Small, FontId::proportional(15.0));
+        st.spacing.button_padding = egui::vec2(18.0, 8.0);
+        st.spacing.item_spacing = egui::vec2(8.0, 8.0);
+        st.visuals.panel_fill = FONDO;
+        st.visuals.window_fill = FONDO;
+        st.visuals.widgets.noninteractive.fg_stroke.color = TINTA;
+        st.visuals.widgets.inactive.fg_stroke.color = TINTA;
+        st.visuals.widgets.hovered.fg_stroke.color = TINTA;
+        st.visuals.widgets.active.fg_stroke.color = TINTA;
+        st.visuals.selection.bg_fill = PRIMARIO_FONDO;
+        st.visuals.selection.stroke.color = PRIMARIO;
+    });
 }
 
 enum Mensaje {
@@ -50,28 +103,43 @@ enum Mensaje {
 }
 
 #[derive(Default)]
+enum Aviso {
+    #[default]
+    Nada,
+    Avance(String),
+    Listo(PathBuf, usize),
+    /// (título en negrita, detalle)
+    Error(String, String),
+}
+
+#[derive(Default)]
 struct App {
     archivos: Vec<PathBuf>,
     trabajo: Option<Receiver<Mensaje>>,
-    estado: String,
-    hubo_error: bool,
-    ultimo: Option<PathBuf>,
+    aviso: Aviso,
     en_ayuda: bool,
+    cuadros: u32,
 }
 
 impl App {
     fn agregar(&mut self, rutas: impl IntoIterator<Item = PathBuf>) {
         let mut rechazados = Vec::new();
+        let mut agregados = 0;
         for r in rutas {
             if nucleo::es_aceptado(&r) {
                 self.archivos.push(r);
+                agregados += 1;
             } else {
                 rechazados.push(r.file_name().unwrap_or_default().to_string_lossy().to_string());
             }
         }
         if !rechazados.is_empty() {
-            self.hubo_error = true;
-            self.estado = format!("No se pudo agregar: {}. Solo sirven archivos PDF y de Word (.doc, .docx).", rechazados.join(", "));
+            self.aviso = Aviso::Error(
+                "No se pudo agregar.".into(),
+                format!("{}: solo sirven archivos PDF y de Word (.doc, .docx).", rechazados.join(", ")),
+            );
+        } else if agregados > 0 {
+            self.aviso = Aviso::Nada;
         }
     }
 
@@ -94,8 +162,10 @@ impl App {
             salida.set_extension("pdf");
         }
         if self.archivos.contains(&salida) {
-            self.hubo_error = true;
-            self.estado = "El PDF final no puede reemplazar a uno de los documentos de la lista.".into();
+            self.aviso = Aviso::Error(
+                "No se pudo guardar.".into(),
+                "El PDF final no puede reemplazar a uno de los documentos de la lista. Elegí otro nombre.".into(),
+            );
             return;
         }
         let (tx, rx) = channel();
@@ -112,9 +182,7 @@ impl App {
             ctx.request_repaint();
         });
         self.trabajo = Some(rx);
-        self.hubo_error = false;
-        self.ultimo = None;
-        self.estado = "Preparando…".into();
+        self.aviso = Aviso::Avance("Preparando…".into());
     }
 
     fn recibir(&mut self) {
@@ -122,15 +190,13 @@ impl App {
         let mut terminado = false;
         for m in rx.try_iter() {
             match m {
-                Mensaje::Avance(t) => self.estado = t,
+                Mensaje::Avance(t) => self.aviso = Aviso::Avance(t),
                 Mensaje::Fin(Ok((ruta, n))) => {
-                    self.estado = format!("Listo: {} ({n} páginas)", ruta.display());
-                    self.ultimo = Some(ruta);
+                    self.aviso = Aviso::Listo(ruta, n);
                     terminado = true;
                 }
                 Mensaje::Fin(Err(e)) => {
-                    self.estado = e;
-                    self.hubo_error = true;
+                    self.aviso = Aviso::Error("No se pudo guardar.".into(), e);
                     terminado = true;
                 }
             }
@@ -142,95 +208,390 @@ impl App {
 }
 
 fn abrir(ruta: &Path) {
-    let mut cmd = if cfg!(windows) {
-        let mut c = std::process::Command::new("explorer");
-        c.arg(ruta);
-        c
+    let programa = if cfg!(windows) {
+        "explorer"
     } else if cfg!(target_os = "macos") {
-        let mut c = std::process::Command::new("open");
-        c.arg(ruta);
-        c
+        "open"
     } else {
-        let mut c = std::process::Command::new("xdg-open");
-        c.arg(ruta);
-        c
+        "xdg-open"
     };
-    let _ = cmd.spawn();
+    let _ = std::process::Command::new(programa).arg(ruta).spawn();
 }
 
-const VERDE: egui::Color32 = egui::Color32::from_rgb(30, 122, 70);
-const PRIMARIO: egui::Color32 = egui::Color32::from_rgb(20, 96, 122);
-const CELESTE: egui::Color32 = egui::Color32::from_rgb(41, 157, 190);
-const TINTA: egui::Color32 = egui::Color32::from_rgb(27, 39, 51);
+// ---------------------------------------------------------------------------
+// Componentes
+// ---------------------------------------------------------------------------
 
-fn boton_grande(texto: &str) -> egui::Button<'_> {
-    egui::Button::new(egui::RichText::new(texto).size(17.0)).min_size(egui::vec2(0.0, 36.0))
+/// Botón principal: uno por pantalla, marca lo que hay que tocar ahora.
+fn boton_principal(texto: &str) -> egui::Button<'_> {
+    egui::Button::new(RichText::new(texto).font(negrita(18.0)).color(Color32::WHITE))
+        .fill(PRIMARIO)
+        .corner_radius(CornerRadius::same(RADIO_MD))
+        .min_size(egui::vec2(0.0, 48.0))
 }
 
-fn paso(ui: &mut egui::Ui, n: u8, titulo: &str) {
-    ui.add_space(8.0);
+fn boton_secundario(texto: &str) -> egui::Button<'_> {
+    egui::Button::new(RichText::new(texto).font(negrita(18.0)).color(TINTA))
+        .fill(SUPERFICIE)
+        .stroke(Stroke::new(1.0, BORDE))
+        .corner_radius(CornerRadius::same(RADIO_MD))
+        .min_size(egui::vec2(0.0, 48.0))
+}
+
+/// Botón de la lista (Subir, Bajar, Quitar).
+fn boton_chico(texto: &str) -> egui::Button<'_> {
+    egui::Button::new(RichText::new(texto).font(negrita(15.0)).color(TINTA))
+        .fill(SUPERFICIE)
+        .stroke(Stroke::new(1.0, BORDE))
+        .corner_radius(CornerRadius::same(RADIO_SM))
+        .min_size(egui::vec2(0.0, 40.0))
+}
+
+fn ayuda(texto: &str) -> RichText {
+    RichText::new(texto).size(15.0).color(TINTA_SUAVE)
+}
+
+fn numero_de_paso(ui: &mut egui::Ui, n: u8) {
+    let (r, _) = ui.allocate_exact_size(egui::vec2(32.0, 32.0), egui::Sense::hover());
+    ui.painter().circle_filled(r.center(), 16.0, CELESTE);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, n.to_string(), negrita(17.0), TINTA);
+}
+
+fn paso(ui: &mut egui::Ui, n: u8, titulo: &str, aclaracion: &str) {
     ui.horizontal(|ui| {
-        let (r, _) = ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
-        ui.painter().circle_filled(r.center(), 15.0, CELESTE);
-        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, n.to_string(), egui::FontId::proportional(18.0), TINTA);
-        ui.label(egui::RichText::new(titulo).size(19.0).strong());
+        numero_de_paso(ui, n);
+        ui.add_space(4.0);
+        ui.label(RichText::new(titulo).font(negrita(20.0)).color(TINTA));
+        if !aclaracion.is_empty() {
+            ui.add_space(4.0);
+            ui.label(ayuda(aclaracion));
+        }
     });
     ui.add_space(4.0);
 }
 
-impl App {
-    fn pantalla_ayuda(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.add_space(8.0);
-            ui.heading("Cómo se usa");
-            ui.label("Este programa junta varios documentos (por ejemplo, una nota y un proyecto) en un solo PDF.");
+fn tarjeta() -> Frame {
+    Frame::new()
+        .fill(SUPERFICIE)
+        .stroke(Stroke::new(1.0, BORDE_SUAVE))
+        .corner_radius(CornerRadius::same(RADIO_MD))
+        .inner_margin(Margin::symmetric(16, 12))
+}
 
-            let seccion = |ui: &mut egui::Ui, titulo: &str, lineas: &[&str]| {
-                ui.add_space(14.0);
-                ui.label(egui::RichText::new(titulo).size(18.0).strong());
-                for l in lineas {
-                    ui.add_space(3.0);
-                    ui.label(*l);
-                }
-            };
-            seccion(ui, "Paso 1  ·  Agregá los documentos", &[
-                "• Tocá el botón «Agregar documentos…» y elegí los archivos. Podés elegir varios a la vez.",
-                "• También podés arrastrarlos desde una carpeta y soltarlos sobre la ventana.",
-                "• Sirven archivos PDF y de Word (.doc y .docx). Los de Word se pasan a PDF solos.",
-            ]);
-            seccion(ui, "Paso 2  ·  Revisá el orden", &[
-                "• Los documentos aparecen en una lista numerada.",
-                "• El número 1 va al principio del PDF final, el 2 después, y así.",
-                "• Con «Subir» y «Bajar» cambiás el lugar de cada documento.",
-                "• Con «Quitar» lo sacás de la lista. El archivo original no se borra.",
-            ]);
-            seccion(ui, "Paso 3  ·  Guardá el PDF final", &[
-                "• Tocá «Guardar PDF final…», elegí la carpeta y el nombre, y aceptá.",
-                "• Esperá unos segundos. La primera vez puede tardar un poco más.",
-                "• Cuando termina aparece el aviso «Listo» y podés abrir el PDF para revisarlo.",
-            ]);
-            seccion(ui, "Si el documento está en Google Docs", &[
-                "• Abrilo en Google Docs y andá a Archivo → Descargar → Microsoft Word (.docx) o Documento PDF.",
-                "• Después agregá ese archivo descargado en el Paso 1.",
-            ]);
-            seccion(ui, "Para tener en cuenta", &[
-                "• Los documentos originales nunca se modifican ni se borran.",
-                "• El PDF final no puede guardarse con el mismo nombre y carpeta que uno de los documentos de la lista.",
-                "• Si un PDF tiene contraseña, no se puede unir: pedí una copia sin contraseña.",
-                "• Para empezar otro trámite, tocá «Empezar de nuevo».",
-            ]);
-            ui.add_space(16.0);
-            if ui.add(boton_grande("Volver a armar el documento")).clicked() {
+fn borde_punteado(ui: &egui::Ui, r: egui::Rect, trazo: Stroke) {
+    let p = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()];
+    ui.painter().extend(egui::Shape::dashed_line(&p, trazo, 9.0, 6.0));
+}
+
+/// Aviso con ícono: la primera palabra nombra el estado, no depende solo del color.
+fn aviso(ui: &mut egui::Ui, fondo: Color32, icono: impl FnOnce(&mut egui::Ui), titulo: &str, detalle: &str) {
+    Frame::new()
+        .fill(fondo)
+        .corner_radius(CornerRadius::same(RADIO_MD))
+        .inner_margin(Margin::symmetric(16, 12))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                icono(ui);
+                ui.add_space(4.0);
+                ui.vertical(|ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 5.0;
+                        ui.label(RichText::new(titulo).font(negrita(17.0)).color(TINTA));
+                        ui.label(RichText::new(detalle).color(TINTA));
+                    });
+                });
+            });
+        });
+}
+
+fn icono_listo(ui: &mut egui::Ui) {
+    let (r, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover());
+    let c = r.center();
+    ui.painter().circle_filled(c, 11.0, EXITO);
+    let t = Stroke::new(2.5, Color32::WHITE);
+    ui.painter().line_segment([c + egui::vec2(-5.0, 0.5), c + egui::vec2(-1.5, 4.0)], t);
+    ui.painter().line_segment([c + egui::vec2(-1.5, 4.0), c + egui::vec2(5.0, -3.0)], t);
+}
+
+fn icono_error(ui: &mut egui::Ui) {
+    let (r, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover());
+    ui.painter().circle_filled(r.center(), 11.0, ERROR);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, "!", negrita(17.0), Color32::WHITE);
+}
+
+fn icono_avance(ui: &mut egui::Ui) {
+    ui.add(egui::Spinner::new().size(22.0).color(PRIMARIO));
+}
+
+// ---------------------------------------------------------------------------
+// Pantallas
+// ---------------------------------------------------------------------------
+
+impl App {
+    fn pestanas(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::top("pestanas")
+            .frame(Frame::new().fill(SUPERFICIE).inner_margin(Margin::symmetric(MARGEN, 0)))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 24.0;
+                    ui.spacing_mut().button_padding.x = 0.0;
+                    for (es_ayuda, texto) in [(false, "Armar documento"), (true, "Cómo se usa")] {
+                        let activa = self.en_ayuda == es_ayuda;
+                        let color = if activa { PRIMARIO } else { TINTA_SUAVE };
+                        let r = ui.add(
+                            egui::Button::new(RichText::new(texto).font(negrita(18.0)).color(color))
+                                .frame(false)
+                                .min_size(egui::vec2(0.0, 54.0)),
+                        );
+                        if activa {
+                            let linea = egui::Rect::from_min_max(
+                                egui::pos2(r.rect.left(), r.rect.bottom() - 3.0),
+                                r.rect.right_bottom(),
+                            );
+                            ui.painter().rect_filled(linea, 0.0, PRIMARIO);
+                        }
+                        if r.clicked() {
+                            self.en_ayuda = es_ayuda;
+                        }
+                    }
+                });
+            });
+    }
+
+    fn pantalla_ayuda(&mut self, ui: &mut egui::Ui) {
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            ui.label(RichText::new("Cómo se usa").font(negrita(28.0)).color(TINTA));
+            ui.label(
+                RichText::new("Este programa junta varios documentos, por ejemplo una nota y un proyecto, en un solo PDF.")
+                    .color(TINTA_SUAVE),
+            );
+            ui.add_space(4.0);
+
+            let pasos: [(u8, &str, &str); 3] = [
+                (1, "Agregá los documentos", "Tocá «Agregar documentos…» y elegí los archivos, o arrastralos desde una carpeta y soltalos sobre la ventana. Sirven archivos PDF y de Word."),
+                (2, "Revisá el orden", "El número 1 va al principio del PDF final. Con «Subir» y «Bajar» cambiás el lugar de cada documento; con «Quitar» lo sacás de la lista."),
+                (3, "Guardá el PDF final", "Tocá «Guardar PDF final…», elegí la carpeta y el nombre. Esperá unos segundos hasta que aparezca el aviso «Listo»."),
+            ];
+            for (n, titulo, texto) in pasos {
+                tarjeta().inner_margin(Margin::same(16)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| numero_de_paso(ui, n));
+                        ui.add_space(8.0);
+                        ui.vertical(|ui| {
+                            ui.label(RichText::new(titulo).font(negrita(20.0)).color(TINTA));
+                            ui.label(texto);
+                        });
+                    });
+                });
+            }
+            let notas: [(&str, &[&str]); 2] = [
+                ("Si el documento está en Google Docs", &["Abrilo y andá a Archivo → Descargar → Microsoft Word (.docx). Después agregá ese archivo en el paso 1."]),
+                ("Para tener en cuenta", &[
+                    "Los documentos originales nunca se modifican ni se borran.",
+                    "Si un PDF tiene contraseña no se puede unir: pedí una copia sin contraseña.",
+                    "Para empezar otro trámite, tocá «Empezar de nuevo».",
+                ]),
+            ];
+            for (titulo, lineas) in notas {
+                tarjeta().inner_margin(Margin::same(16)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label(RichText::new(titulo).font(negrita(20.0)).color(TINTA));
+                    for l in lineas {
+                        ui.label(*l);
+                    }
+                });
+            }
+            ui.add_space(4.0);
+            if ui.add(boton_principal("Volver a armar el documento")).clicked() {
                 self.en_ayuda = false;
             }
-            ui.add_space(12.0);
         });
+    }
+
+    fn paso_guardar(&mut self, ui: &mut egui::Ui, ocupado: bool) {
+        let ctx = ui.ctx().clone();
+        paso(ui, 3, "Guardá el PDF final", "");
+        let listo = match &self.aviso {
+            Aviso::Listo(ruta, _) => Some(ruta.clone()),
+            _ => None,
+        };
+        ui.horizontal(|ui| {
+            if let Some(ruta) = &listo {
+                if ui.add(boton_principal("Abrir el PDF")).clicked() {
+                    abrir(ruta);
+                }
+                if ui.add(boton_secundario("Abrir la carpeta")).clicked() {
+                    if let Some(dir) = ruta.parent() {
+                        abrir(dir);
+                    }
+                }
+                if ui.add(boton_secundario("Guardar de nuevo…")).clicked() {
+                    self.exportar(&ctx);
+                }
+            } else if ocupado {
+                ui.add_enabled(false, boton_secundario("Guardando…"));
+            } else if self.archivos.is_empty() {
+                ui.add_enabled(false, boton_secundario("Guardar PDF final…"));
+                ui.add_space(8.0);
+                ui.label(ayuda("Primero agregá al menos un documento."));
+            } else {
+                if ui.add(boton_principal("Guardar PDF final…")).clicked() {
+                    self.exportar(&ctx);
+                }
+                ui.add_space(8.0);
+                ui.label(ayuda("Los documentos originales no se modifican."));
+            }
+        });
+        match &self.aviso {
+            Aviso::Nada => {}
+            Aviso::Avance(t) => {
+                ui.add_space(4.0);
+                aviso(ui, PRIMARIO_FONDO, icono_avance, t, "Puede tardar unos segundos.");
+            }
+            Aviso::Listo(ruta, n) => {
+                ui.add_space(4.0);
+                let nombre = ruta.file_name().unwrap_or_default().to_string_lossy();
+                let paginas = if *n == 1 { "1 página".to_string() } else { format!("{n} páginas") };
+                aviso(ui, EXITO_FONDO, icono_listo, "Listo.", &format!("Se guardó «{nombre}», de {paginas}."));
+            }
+            Aviso::Error(titulo, detalle) => {
+                ui.add_space(4.0);
+                aviso(ui, ERROR_FONDO, icono_error, titulo, detalle);
+            }
+        }
+    }
+
+    fn paso_agregar(&mut self, ui: &mut egui::Ui, ocupado: bool) {
+        paso(ui, 1, "Agregá los documentos", "");
+        ui.horizontal(|ui| {
+            ui.add_enabled_ui(!ocupado, |ui| {
+                let vacio = self.archivos.is_empty();
+                let boton = if vacio { boton_principal("+  Agregar documentos…") } else { boton_secundario("+  Agregar más documentos…") };
+                if ui.add(boton).clicked() {
+                    if let Some(rutas) = rfd::FileDialog::new()
+                        .set_title("Agregar documentos")
+                        .add_filter("Documentos (PDF y Word)", &["pdf", "doc", "docx", "odt", "rtf"])
+                        .pick_files()
+                    {
+                        self.agregar(rutas);
+                    }
+                }
+                if vacio {
+                    ui.add_space(8.0);
+                    ui.label(ayuda("Sirven archivos PDF y de Word."));
+                } else if ui.add(boton_secundario("Empezar de nuevo")).clicked() {
+                    self.archivos.clear();
+                    self.aviso = Aviso::Nada;
+                }
+            });
+        });
+    }
+
+    fn paso_ordenar(&mut self, ui: &mut egui::Ui, ocupado: bool) {
+        let vacio = self.archivos.is_empty();
+        paso(ui, 2, "Revisá el orden", if vacio { "" } else { "El número 1 queda al principio del PDF." });
+        if vacio {
+            let tam = egui::vec2(ui.available_width(), ui.available_height().max(110.0));
+            let (r, _) = ui.allocate_exact_size(tam, egui::Sense::hover());
+            borde_punteado(ui, r.shrink(1.0), Stroke::new(2.0, BORDE));
+            let c = r.center();
+            ui.painter().text(c - egui::vec2(0.0, 12.0), Align2::CENTER_CENTER, "Todavía no hay documentos", negrita(17.0), TINTA);
+            ui.painter().text(
+                c + egui::vec2(0.0, 13.0),
+                Align2::CENTER_CENTER,
+                "Arrastrá acá la nota y el proyecto, o usá el botón de arriba.",
+                FontId::proportional(15.0),
+                TINTA_SUAVE,
+            );
+            return;
+        }
+        let mut accion: Option<(usize, i8)> = None; // -1 subir, 1 bajar, 0 quitar
+        let total = self.archivos.len();
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            for (i, ruta) in self.archivos.iter().enumerate() {
+                tarjeta().show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.add_sized([28.0, 40.0], egui::Label::new(RichText::new((i + 1).to_string()).font(negrita(24.0)).color(TINTA)));
+                        ui.add_space(4.0);
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            ui.add_enabled_ui(!ocupado, |ui| {
+                                if ui.add(boton_chico("Quitar")).clicked() {
+                                    accion = Some((i, 0));
+                                }
+                                if ui.add_enabled(i + 1 < total, boton_chico("Bajar")).clicked() {
+                                    accion = Some((i, 1));
+                                }
+                                if ui.add_enabled(i > 0, boton_chico("Subir")).clicked() {
+                                    accion = Some((i, -1));
+                                }
+                            });
+                            ui.add_space(4.0);
+                            ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                                ui.spacing_mut().item_spacing.y = 1.0;
+                                let nombre = ruta.file_name().unwrap_or_default().to_string_lossy();
+                                ui.add(egui::Label::new(RichText::new(nombre).font(negrita(17.0)).color(TINTA)).truncate())
+                                    .on_hover_text(ruta.display().to_string());
+                                let tipo = if nucleo::es_pdf(ruta) { "PDF" } else { "Documento de Word · se pasa a PDF al guardar" };
+                                ui.add(egui::Label::new(ayuda(tipo)).truncate());
+                            });
+                        });
+                    });
+                });
+            }
+        });
+        match accion {
+            Some((i, -1)) => self.archivos.swap(i, i - 1),
+            Some((i, 1)) => self.archivos.swap(i, i + 1),
+            Some((i, _)) => {
+                self.archivos.remove(i);
+            }
+            None => {}
+        }
+    }
+}
+
+impl App {
+    /// Solo para pruebas: con ARMADOR_CAPTURA=archivo.ppm guarda una imagen de la ventana y cierra.
+    /// ARMADOR_DEMO elige el estado: lista, listo, error, avance o ayuda.
+    fn captura_de_prueba(&mut self, ctx: &egui::Context) {
+        let Ok(destino) = std::env::var("ARMADOR_CAPTURA") else { return };
+        self.cuadros += 1;
+        if self.cuadros == 1 {
+            let demo = std::env::var("ARMADOR_DEMO").unwrap_or_default();
+            if demo != "" && demo != "ayuda" {
+                self.archivos = vec!["Nota de elevación.docx".into(), "Proyecto de ordenanza.pdf".into()];
+            }
+            match demo.as_str() {
+                "listo" => self.aviso = Aviso::Listo("Nota de elevación - completo.pdf".into(), 14),
+                "error" => self.aviso = Aviso::Error("No se pudo guardar.".into(), "«Proyecto de ordenanza.pdf» está protegido con contraseña y no se puede unir.".into()),
+                "avance" => self.aviso = Aviso::Avance("Convirtiendo «Nota de elevación.docx» a PDF…".into()),
+                "ayuda" => self.en_ayuda = true,
+                _ => {}
+            }
+        }
+        if self.cuadros == 8 {
+            let ctx2 = ctx.clone();
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::ScreenshotCallback::new(move |img| {
+                let mut datos = format!("P6\n{} {}\n255\n", img.size[0], img.size[1]).into_bytes();
+                for p in &img.pixels {
+                    datos.extend_from_slice(&[p.r(), p.g(), p.b()]);
+                }
+                let _ = std::fs::write(destino, datos);
+                ctx2.send_viewport_cmd(egui::ViewportCommand::Close);
+                ctx2.request_repaint();
+            })));
+        }
+        ctx.request_repaint();
     }
 }
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.recibir();
+        self.captura_de_prueba(ui.ctx());
         let ocupado = self.trabajo.is_some();
         let ctx = ui.ctx().clone();
 
@@ -241,149 +602,40 @@ impl eframe::App for App {
         }
         let arrastrando = ctx.input(|i| !i.raw.hovered_files.is_empty());
 
-        egui::Panel::top("pestanas").show(ui, |ui| {
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.en_ayuda, false, egui::RichText::new("  Armar documento  ").size(17.0));
-                ui.selectable_value(&mut self.en_ayuda, true, egui::RichText::new("  Cómo se usa  ").size(17.0));
-            });
-            ui.add_space(8.0);
-        });
+        self.pestanas(ui);
+        let cuerpo = Frame::new().fill(FONDO).inner_margin(Margin::same(MARGEN));
 
         if self.en_ayuda {
-            egui::CentralPanel::default().show(ui, |ui| self.pantalla_ayuda(ui));
-            return;
+            egui::CentralPanel::default().frame(cuerpo).show(ui, |ui| self.pantalla_ayuda(ui));
+        } else {
+            egui::Panel::bottom("pie")
+                .show_separator_line(false)
+                .frame(Frame::new().fill(FONDO).inner_margin(Margin { left: MARGEN, right: MARGEN, top: 8, bottom: MARGEN }))
+                .show(ui, |ui| self.paso_guardar(ui, ocupado));
+            egui::CentralPanel::default()
+                .frame(Frame::new().fill(FONDO).inner_margin(Margin { left: MARGEN, right: MARGEN, top: MARGEN, bottom: 8 }))
+                .show(ui, |ui| {
+                    self.paso_agregar(ui, ocupado);
+                    ui.add_space(16.0);
+                    self.paso_ordenar(ui, ocupado);
+                });
         }
-
-        egui::Panel::bottom("pie").show(ui, |ui| {
-            paso(ui, 3, "Guardá el PDF final");
-            ui.horizontal(|ui| {
-                let puede = !ocupado && !self.archivos.is_empty();
-                let b = boton_grande("  Guardar PDF final…  ");
-                let b = if puede { b.fill(PRIMARIO) } else { b };
-                let texto_blanco = |ui: &mut egui::Ui| ui.visuals_mut().override_text_color = Some(egui::Color32::WHITE);
-                let r = ui.scope(|ui| {
-                    if puede {
-                        texto_blanco(ui);
-                    }
-                    ui.add_enabled(puede, b)
-                });
-                if r.inner.clicked() {
-                    self.exportar(&ctx);
-                }
-                if let Some(u) = self.ultimo.clone() {
-                    if ui.add(boton_grande("Abrir el PDF")).clicked() {
-                        abrir(&u);
-                    }
-                    if ui.add(boton_grande("Abrir la carpeta")).clicked() {
-                        if let Some(dir) = u.parent() {
-                            abrir(dir);
-                        }
-                    }
-                }
-                if ocupado {
-                    ui.spinner();
-                }
-            });
-            ui.add_space(4.0);
-            if self.estado.is_empty() {
-                if self.archivos.is_empty() {
-                    ui.weak("Primero agregá al menos un documento.");
-                }
-            } else {
-                let color = if self.hubo_error {
-                    ui.visuals().error_fg_color
-                } else if self.ultimo.is_some() {
-                    VERDE
-                } else {
-                    ui.visuals().text_color()
-                };
-                ui.add(egui::Label::new(egui::RichText::new(&self.estado).color(color).strong()).wrap());
-            }
-            ui.add_space(10.0);
-        });
-
-        egui::CentralPanel::default().show(ui, |ui| {
-            paso(ui, 1, "Agregá los documentos");
-            ui.horizontal(|ui| {
-                ui.add_enabled_ui(!ocupado, |ui| {
-                    if ui.add(boton_grande("  Agregar documentos…  ")).clicked() {
-                        if let Some(rutas) = rfd::FileDialog::new()
-                            .set_title("Agregar documentos")
-                            .add_filter("Documentos (PDF y Word)", &["pdf", "doc", "docx", "odt", "rtf"])
-                            .pick_files()
-                        {
-                            self.agregar(rutas);
-                        }
-                    }
-                    if !self.archivos.is_empty() && ui.add(boton_grande("Empezar de nuevo")).clicked() {
-                        self.archivos.clear();
-                        self.estado.clear();
-                        self.hubo_error = false;
-                        self.ultimo = None;
-                    }
-                });
-            });
-            ui.weak("También podés arrastrar los archivos y soltarlos sobre esta ventana.");
-
-            paso(ui, 2, "Revisá el orden");
-            if self.archivos.is_empty() {
-                ui.weak("Todavía no hay documentos en la lista.");
-                return;
-            }
-            ui.label("El número 1 queda al principio del PDF final.");
-            ui.add_space(4.0);
-            let mut accion: Option<(usize, i8)> = None; // -1 subir, 1 bajar, 0 quitar
-            let total = self.archivos.len();
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for (i, ruta) in self.archivos.iter().enumerate() {
-                    egui::Frame::group(ui.style()).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(format!("{}", i + 1)).size(20.0).strong());
-                            ui.add_enabled_ui(!ocupado, |ui| {
-                                if ui.add_enabled(i > 0, egui::Button::new("▲ Subir")).clicked() {
-                                    accion = Some((i, -1));
-                                }
-                                if ui.add_enabled(i + 1 < total, egui::Button::new("▼ Bajar")).clicked() {
-                                    accion = Some((i, 1));
-                                }
-                                if ui.button("✖ Quitar").clicked() {
-                                    accion = Some((i, 0));
-                                }
-                            });
-                            let nombre = ruta.file_name().unwrap_or_default().to_string_lossy();
-                            ui.vertical(|ui| {
-                                ui.add(egui::Label::new(egui::RichText::new(nombre).strong()).truncate())
-                                    .on_hover_text(ruta.display().to_string());
-                                if !nucleo::es_pdf(ruta) {
-                                    ui.weak("Documento de Word: se pasa a PDF al guardar");
-                                }
-                            });
-                            ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
-                        });
-                    });
-                }
-            });
-            match accion {
-                Some((i, -1)) => self.archivos.swap(i, i - 1),
-                Some((i, 1)) => self.archivos.swap(i, i + 1),
-                Some((i, _)) => {
-                    self.archivos.remove(i);
-                }
-                None => {}
-            }
-        });
 
         if arrastrando && !ocupado {
             let area = ctx.content_rect();
             let pintor = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("soltar")));
-            pintor.rect_filled(area, 0.0, egui::Color32::from_rgba_unmultiplied(20, 96, 122, 230));
+            pintor.rect_filled(area, 0.0, FONDO);
+            let zona = area.shrink(MARGEN as f32);
+            pintor.rect_filled(zona, RADIO_MD as f32, PRIMARIO_FONDO);
+            let p = [zona.left_top(), zona.right_top(), zona.right_bottom(), zona.left_bottom(), zona.left_top()];
+            pintor.extend(egui::Shape::dashed_line(&p, Stroke::new(3.0, PRIMARIO), 12.0, 8.0));
+            pintor.text(zona.center() - egui::vec2(0.0, 14.0), Align2::CENTER_CENTER, "Soltá los documentos acá", negrita(28.0), PRIMARIO);
             pintor.text(
-                area.center(),
-                egui::Align2::CENTER_CENTER,
-                "Soltá los documentos acá",
-                egui::FontId::proportional(30.0),
-                egui::Color32::WHITE,
+                zona.center() + egui::vec2(0.0, 22.0),
+                Align2::CENTER_CENTER,
+                "Se agregan al final de la lista.",
+                FontId::proportional(17.0),
+                TINTA,
             );
         }
     }

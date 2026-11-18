@@ -2,7 +2,11 @@
 
 use lopdf::{Dictionary, Document, Object, ObjectId};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+
+/// Tiempo máximo de espera por cada documento que convierte LibreOffice.
+const SEGUNDOS_LIMITE: u64 = 180;
 
 /// Extensiones que se aceptan además de PDF (las convierte LibreOffice).
 pub const EXT_CONVERTIBLES: &[&str] = &["doc", "docx", "odt", "rtf"];
@@ -96,6 +100,20 @@ pub fn limpiar_temporal() {
     let _ = std::fs::remove_dir_all(carpeta_temporal());
 }
 
+/// Termina LibreOffice y sus procesos hijos (en Windows, soffice.exe lanza soffice.bin).
+fn matar_arbol(hijo: &mut Child) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &hijo.id().to_string()])
+            .creation_flags(0x0800_0000)
+            .status();
+    }
+    let _ = hijo.kill();
+    let _ = hijo.wait();
+}
+
 /// Convierte un documento a PDF y devuelve la ruta del PDF generado.
 /// `n` distingue las salidas para que dos archivos con el mismo nombre no se pisen.
 pub fn convertir_a_pdf(soffice: &Path, entrada: &Path, n: usize) -> Result<PathBuf, String> {
@@ -116,7 +134,24 @@ pub fn convertir_a_pdf(soffice: &Path, entrada: &Path, n: usize) -> Result<PathB
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-    let out = cmd.output().map_err(|e| format!("No se pudo ejecutar LibreOffice: {e}"))?;
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    let mut hijo = cmd.spawn().map_err(|e| format!("No se pudo ejecutar LibreOffice: {e}"))?;
+    let segundos = std::env::var("ARMADOR_LIMITE_SEG").ok().and_then(|v| v.parse().ok()).unwrap_or(SEGUNDOS_LIMITE);
+    let limite = Instant::now() + Duration::from_secs(segundos);
+    loop {
+        match hijo.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() >= limite => {
+                matar_arbol(&mut hijo);
+                return Err(format!(
+                    "La conversión de «{}» tardó demasiado y se canceló. Probá de nuevo; si vuelve a pasar, abrí el documento en Word y guardalo como PDF.",
+                    entrada.file_name().unwrap_or_default().to_string_lossy()
+                ));
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(150)),
+            Err(e) => return Err(format!("Falló la espera de LibreOffice: {e}")),
+        }
+    }
 
     let nombre = entrada.file_stem().ok_or("Nombre de archivo inválido")?;
     let pdf = salida_dir.join(format!("{}.pdf", nombre.to_string_lossy()));
@@ -129,11 +164,9 @@ pub fn convertir_a_pdf(soffice: &Path, entrada: &Path, n: usize) -> Result<PathB
             return Ok(p);
         }
     }
-    let detalle = String::from_utf8_lossy(&out.stderr).trim().to_string();
     Err(format!(
-        "LibreOffice no pudo convertir «{}». {}",
-        entrada.file_name().unwrap_or_default().to_string_lossy(),
-        detalle
+        "No se pudo pasar a PDF «{}». Revisá que el archivo no esté dañado ni abierto en otro programa.",
+        entrada.file_name().unwrap_or_default().to_string_lossy()
     ))
 }
 

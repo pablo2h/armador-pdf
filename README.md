@@ -12,28 +12,33 @@ Funciona en Windows y Linux, sin instalación.
 
 Los documentos originales nunca se modifican. La pestaña «Cómo se usa» del programa trae el instructivo completo.
 
+![Captura del programa](docs/captura.png)
+
 ## Descarga
 
-La versión de prueba para Windows está en la sección [Releases](../../releases).
+En la sección [Releases](../../releases/latest) hay dos paquetes, que ya traen LibreOffice incluido:
 
-En esta versión, unir PDF funciona sin nada más. Para convertir documentos de Word hace falta tener [LibreOffice](https://es.libreoffice.org/) instalado, o una copia dentro de una carpeta `libreoffice` junto al ejecutable.
+- **Windows**: `ArmadorPDF-Windows.zip`. Descomprimir y abrir `Armador de PDF.exe`.
+- **Linux**: `ArmadorPDF-Linux.tar.gz`. Descomprimir y abrir `armador-pdf`.
+
+No hay que instalar nada. El ejecutable tiene que quedar junto a la carpeta `libreoffice`.
 
 ## Estado
 
-| Parte | Estado |
-|---|---|
-| Unir y ordenar PDF | Funciona (probado en Linux y en Windows vía Wine) |
-| Convertir Word a PDF | Funciona en Linux; en Windows falta probar |
-| Paquete portable con LibreOffice incluido | Pendiente |
-| Prueba en un Windows real | Pendiente |
+| Parte | Linux | Windows |
+|---|---|---|
+| Unir y ordenar PDF | Probado | Probado en Wine |
+| Convertir Word a PDF con el LibreOffice incluido | Probado | **Falta probar en un Windows real** (LibreOffice no corre en Wine) |
+| Interfaz | Probada | Probada en Wine |
 
-Limitaciones conocidas: los PDF con contraseña se rechazan; los marcadores y los formularios rellenables de los PDF originales no pasan al archivo final; no se renumeran folios.
+Limitaciones conocidas: los PDF con contraseña se rechazan; los marcadores y los formularios rellenables de los PDF originales no pasan al archivo final; no se renumeran folios. Si una conversión tarda más de 3 minutos se cancela con un aviso.
 
 ## Cómo está hecho
 
 - **Rust**, con [`egui`/`eframe`](https://github.com/emilk/egui) para la ventana, [`lopdf`](https://github.com/J-F-Liu/lopdf) para unir los PDF y [`rfd`](https://github.com/PolyMeilex/rfd) para los diálogos de archivos.
 - **LibreOffice** en modo sin ventana para convertir Word a PDF. El programa lo busca primero junto al ejecutable (`libreoffice/` o `LibreOfficePortable/`) y después en el sistema.
 - `src/nucleo.rs`: conversión y unión, sin interfaz. `src/main.rs`: la ventana.
+- Tipografía [Atkinson Hyperlegible](https://www.brailleinstitute.org/freefont/) (licencia OFL, en `assets/`).
 
 ## Compilar
 
