@@ -3,7 +3,16 @@
 use lopdf::{Dictionary, Document, Object, ObjectId};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant, SystemTime};
+
+/// LibreOffice no admite dos conversiones a la vez con el mismo perfil.
+static LIBREOFFICE: Mutex<()> = Mutex::new(());
+/// Documentos ya convertidos en esta sesión: original -> (fecha de modificación, PDF).
+static CONVERTIDOS: Mutex<Option<HashMap<PathBuf, (SystemTime, PathBuf)>>> = Mutex::new(None);
+static NUMERO: AtomicUsize = AtomicUsize::new(0);
 
 /// Tiempo máximo de espera por cada documento que convierte LibreOffice.
 const SEGUNDOS_LIMITE: u64 = 180;
@@ -115,8 +124,9 @@ fn matar_arbol(hijo: &mut Child) {
 }
 
 /// Convierte un documento a PDF y devuelve la ruta del PDF generado.
-/// `n` distingue las salidas para que dos archivos con el mismo nombre no se pisen.
-pub fn convertir_a_pdf(soffice: &Path, entrada: &Path, n: usize) -> Result<PathBuf, String> {
+pub fn convertir_a_pdf(soffice: &Path, entrada: &Path) -> Result<PathBuf, String> {
+    // Cada conversión va a su propia carpeta: dos archivos con el mismo nombre no se pisan.
+    let n = NUMERO.fetch_add(1, Ordering::Relaxed);
     let tmp = carpeta_temporal();
     let salida_dir = tmp.join(format!("conv-{n}"));
     let perfil = tmp.join("perfil");
@@ -265,31 +275,55 @@ pub fn unir_pdfs(entradas: &[PathBuf], salida: &Path) -> Result<usize, String> {
     Ok(total)
 }
 
+fn modificado(p: &Path) -> Option<SystemTime> {
+    std::fs::metadata(p).and_then(|m| m.modified()).ok()
+}
+
+fn ya_convertido(entrada: &Path) -> Option<PathBuf> {
+    let mapa = CONVERTIDOS.lock().ok()?;
+    let (fecha, pdf) = mapa.as_ref()?.get(entrada)?;
+    (Some(*fecha) == modificado(entrada) && pdf.is_file()).then(|| pdf.clone())
+}
+
+/// Devuelve el PDF que corresponde a un documento: él mismo si ya es PDF, o su conversión.
+/// Las conversiones se guardan durante la sesión, así la vista previa y el guardado no repiten trabajo.
+pub fn pdf_de(entrada: &Path) -> Result<PathBuf, String> {
+    let nombre = entrada.file_name().unwrap_or_default().to_string_lossy().to_string();
+    if !entrada.is_file() {
+        return Err(format!("No se encuentra el archivo «{nombre}»."));
+    }
+    if es_pdf(entrada) {
+        return Ok(entrada.to_path_buf());
+    }
+    let _turno = LIBREOFFICE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(pdf) = ya_convertido(entrada) {
+        return Ok(pdf);
+    }
+    let soffice = buscar_libreoffice().ok_or(
+        "No se encontró LibreOffice. Tiene que estar en la carpeta «libreoffice» junto al programa, o instalado en el equipo.",
+    )?;
+    let fecha = modificado(entrada);
+    let pdf = convertir_a_pdf(&soffice, entrada)?;
+    if let (Some(fecha), Ok(mut mapa)) = (fecha, CONVERTIDOS.lock()) {
+        mapa.get_or_insert_with(HashMap::new).insert(entrada.to_path_buf(), (fecha, pdf.clone()));
+    }
+    Ok(pdf)
+}
+
 /// Proceso completo: convierte lo que haga falta y une todo en `salida`.
 /// `avisar` recibe mensajes de avance para mostrar al usuario.
+/// Los temporales quedan hasta que se llame a [`limpiar_temporal`], al cerrar el programa.
 pub fn armar(entradas: &[PathBuf], salida: &Path, mut avisar: impl FnMut(String)) -> Result<usize, String> {
     let mut pdfs: Vec<PathBuf> = Vec::with_capacity(entradas.len());
-    let mut soffice: Option<PathBuf> = None;
-    for (n, e) in entradas.iter().enumerate() {
-        let nombre = e.file_name().unwrap_or_default().to_string_lossy().to_string();
-        if !e.is_file() {
-            return Err(format!("No se encuentra el archivo «{nombre}»."));
+    for e in entradas {
+        if e.is_file() && !es_pdf(e) && ya_convertido(e).is_none() {
+            let nombre = e.file_name().unwrap_or_default().to_string_lossy().to_string();
+            avisar(format!("Pasando a PDF «{nombre}»…"));
         }
-        if es_pdf(e) {
-            pdfs.push(e.clone());
-            continue;
-        }
-        if soffice.is_none() {
-            soffice = Some(buscar_libreoffice().ok_or(
-                "No se encontró LibreOffice. Tiene que estar en la carpeta «libreoffice» junto al programa, o instalado en el equipo.",
-            )?);
-        }
-        avisar(format!("Pasando a PDF «{nombre}»…"));
-        pdfs.push(convertir_a_pdf(soffice.as_ref().unwrap(), e, n)?);
+        pdfs.push(pdf_de(e)?);
     }
     avisar("Uniendo documentos…".into());
     let r = unir_pdfs(&pdfs, salida);
-    limpiar_temporal();
     if let Ok(paginas) = r {
         anotar_en_historial(entradas, salida, paginas);
     }

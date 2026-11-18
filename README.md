@@ -31,7 +31,9 @@ Tocá **Agregar documentos…** y elegí los archivos, o arrastralos desde una c
 
 ### 2. Revisá el orden
 
-Cada documento aparece con un número. El número 1 queda al principio del PDF final. Con **Subir** y **Bajar** se cambia el lugar; con **Quitar** se saca de la lista (el archivo original no se borra).
+Cada documento aparece con un número. El número 1 queda al principio del PDF final. Con **Subir** y **Bajar** se cambia el lugar; con **Quitar** se saca de la lista (el archivo original no se borra) y con **Ver** se abre para revisarlo.
+
+A la derecha, la **vista previa** muestra las páginas del PDF final a medida que se arma, incluidas las de los documentos de Word.
 
 ### 3. Guardá el PDF final
 
@@ -92,6 +94,7 @@ Para aplicar otra marca alcanza con cambiar esa carpeta; no hay que recompilar. 
 | Une PDF en el orden que elijas | Intercalar páginas sueltas de un documento dentro de otro |
 | Pasa Word (`.doc`, `.docx`), ODT y RTF a PDF | Renumerar folios ni agregar numeración |
 | Funciona sin internet y sin instalación | Conservar marcadores ni formularios rellenables de los PDF originales |
+| Muestra una vista previa del PDF final mientras se arma | |
 | Lleva un historial de lo armado | Abrir PDF protegidos con contraseña |
 
 ## Estado de las pruebas
@@ -111,6 +114,7 @@ Si lo probás en Windows y algo no anda, por favor [abrí un aviso](https://gith
 - **[Rust](https://www.rust-lang.org/)**: un solo ejecutable por sistema, sin dependencias.
 - **[egui / eframe](https://github.com/emilk/egui)**: la ventana.
 - **[lopdf](https://github.com/J-F-Liu/lopdf)**: unión de los PDF.
+- **[hayro](https://github.com/LaurenzV/hayro)**: dibujo de las páginas para la vista previa, en Rust puro.
 - **[rfd](https://github.com/PolyMeilex/rfd)**: diálogos de abrir y guardar del sistema.
 - **[LibreOffice](https://es.libreoffice.org/)** en modo sin ventana: pasa Word a PDF. El programa lo busca primero junto al ejecutable (`libreoffice/`) y después instalado en el sistema.
 - Tipografía **[Atkinson Hyperlegible](https://www.brailleinstitute.org/freefont/)**, incluida en el ejecutable (licencia OFL, en `assets/`).
@@ -121,6 +125,7 @@ Si lo probás en Windows y algo no anda, por favor [abrí un aviso](https://gith
 src/nucleo.rs    conversión, unión, historial y pruebas (sin interfaz)
 src/main.rs      la ventana y el sistema de diseño
 src/marca.rs     lectura del paquete de marca
+src/vista.rs     vista previa de las páginas
 marcas/          paquetes de marca listos para usar
 assets/          tipografía
 tests/datos/     documentos de Word para las pruebas
@@ -164,13 +169,13 @@ armador-pdf --salida final.pdf nota.docx proyecto.pdf
 Las imágenes de este README las genera el propio programa:
 
 ```bash
-ARMADOR_MARCA=marcas/ejemplo ARMADOR_DEMO=lista ARMADOR_CAPTURA=captura.ppm armador-pdf
+ARMADOR_MARCA=marcas/ejemplo ARMADOR_DEMO=lista ARMADOR_CAPTURA=captura.ppm target/release/armador-pdf
 ```
 
 `ARMADOR_DEMO` admite `lista`, `listo`, `error`, `avance` y `ayuda`.
 
 ## Créditos y licencias
 
-- Desarrollado por **Horno de Barro**.
+- Desarrollado por **Horno de Barro**. Código bajo [licencia MIT](LICENSE): se puede usar, modificar y redistribuir libremente.
 - Los paquetes incluyen LibreOffice, de The Document Foundation, bajo licencia MPL 2.0; su licencia va dentro de la carpeta `libreoffice`.
 - Atkinson Hyperlegible, del Braille Institute, bajo licencia SIL OFL 1.1.

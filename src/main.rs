@@ -2,6 +2,7 @@
 
 mod marca;
 mod nucleo;
+mod vista;
 
 use eframe::egui;
 use egui::{Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, RichText, Stroke};
@@ -45,27 +46,37 @@ fn main() -> eframe::Result {
             Ok(n) => println!("Listo: {} ({n} páginas)", args[1]),
             Err(e) => {
                 eprintln!("Error: {e}");
+                nucleo::limpiar_temporal();
                 std::process::exit(1);
             }
         }
+        nucleo::limpiar_temporal();
         return Ok(());
     }
 
     let opciones = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([760.0, 640.0])
-            .with_min_inner_size([680.0, 560.0]),
+            .with_inner_size([1120.0, 680.0])
+            .with_min_inner_size([1000.0, 580.0])
+            .with_icon(icono_de_ventana()),
         ..Default::default()
     };
     let titulo = if marca().nombre.is_empty() { "Armador de PDF".to_string() } else { format!("Armador de PDF · {}", marca().nombre) };
-    eframe::run_native(
+    let resultado = eframe::run_native(
         &titulo,
         opciones,
         Box::new(|cc| {
             aplicar_tema(&cc.egui_ctx);
             Ok(Box::new(App { logo: cargar_logo(&cc.egui_ctx), ..Default::default() }))
         }),
-    )
+    );
+    nucleo::limpiar_temporal();
+    resultado
+}
+
+fn icono_de_ventana() -> egui::IconData {
+    let img = image::load_from_memory(include_bytes!("../assets/icono.png")).expect("ícono incluido").to_rgba8();
+    egui::IconData { width: img.width(), height: img.height(), rgba: img.into_raw() }
 }
 
 /// Carga el logo de la marca como textura. Si falta o no se puede leer, el programa sigue sin logo.
@@ -136,28 +147,39 @@ struct App {
     en_ayuda: bool,
     cuadros: u32,
     logo: Option<egui::TextureHandle>,
+    vista: vista::Vista,
+    capturada: bool,
+    /// Aviso junto al paso 1: (es un error, texto).
+    nota_agregar: Option<(bool, String)>,
 }
 
 impl App {
     fn agregar(&mut self, rutas: impl IntoIterator<Item = PathBuf>) {
-        let mut rechazados = Vec::new();
-        let mut agregados = 0;
+        let (mut rechazados, mut repetidos, mut agregados) = (Vec::new(), Vec::new(), 0);
         for r in rutas {
-            if nucleo::es_aceptado(&r) {
-                self.archivos.push(r);
-                agregados += 1;
-            } else {
-                rechazados.push(r.file_name().unwrap_or_default().to_string_lossy().to_string());
+            let nombre = format!("«{}»", r.file_name().unwrap_or_default().to_string_lossy());
+            if !nucleo::es_aceptado(&r) {
+                rechazados.push(nombre);
+                continue;
             }
+            if self.archivos.contains(&r) {
+                repetidos.push(nombre);
+            }
+            self.archivos.push(r);
+            agregados += 1;
         }
-        if !rechazados.is_empty() {
-            self.aviso = Aviso::Error(
-                "No se pudo agregar.".into(),
-                format!("{}: solo sirven archivos PDF y de Word (.doc, .docx).", rechazados.join(", ")),
-            );
-        } else if agregados > 0 {
+        if agregados > 0 && !matches!(self.aviso, Aviso::Avance(_)) {
+            // Un «Listo» o un error anterior ya no corresponden a la lista nueva.
             self.aviso = Aviso::Nada;
         }
+        self.nota_agregar = if !rechazados.is_empty() {
+            Some((true, format!("{}: solo sirven archivos PDF y de Word (.doc, .docx).", rechazados.join(", "))))
+        } else if !repetidos.is_empty() {
+            let verbo = if repetidos.len() == 1 { "ya estaba en la lista y quedó" } else { "ya estaban en la lista y quedaron" };
+            Some((false, format!("{} {verbo} dos veces. Si fue sin querer, tocá «Quitar» en uno.", repetidos.join(", "))))
+        } else {
+            None
+        };
     }
 
     fn exportar(&mut self, ctx: &egui::Context) {
@@ -337,6 +359,12 @@ fn icono_error(ui: &mut egui::Ui) {
     ui.painter().text(r.center(), Align2::CENTER_CENTER, "!", negrita(17.0), Color32::WHITE);
 }
 
+fn icono_info(ui: &mut egui::Ui) {
+    let (r, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover());
+    ui.painter().circle_filled(r.center(), 11.0, marca().primario);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, "i", negrita(17.0), Color32::WHITE);
+}
+
 fn icono_avance(ui: &mut egui::Ui) {
     ui.add(egui::Spinner::new().size(22.0).color(marca().primario));
 }
@@ -394,7 +422,7 @@ impl App {
 
             let pasos: [(u8, &str, &str); 3] = [
                 (1, "Agregá los documentos", "Tocá «Agregar documentos…» y elegí los archivos, o arrastralos desde una carpeta y soltalos sobre la ventana. Sirven archivos PDF y de Word."),
-                (2, "Revisá el orden", "El número 1 va al principio del PDF final. Con «Subir» y «Bajar» cambiás el lugar de cada documento; con «Quitar» lo sacás de la lista."),
+                (2, "Revisá el orden", "El número 1 va al principio del PDF final. Con «Subir» y «Bajar» cambiás el lugar de cada documento; con «Quitar» lo sacás de la lista y con «Ver» lo abrís. A la derecha, la vista previa muestra cómo va quedando el PDF."),
                 (3, "Guardá el PDF final", "Tocá «Guardar PDF final…», elegí la carpeta y el nombre. Esperá unos segundos hasta que aparezca el aviso «Listo»."),
             ];
             for (n, titulo, texto) in pasos {
@@ -514,9 +542,18 @@ impl App {
                 } else if ui.add(boton_secundario("Empezar de nuevo")).clicked() {
                     self.archivos.clear();
                     self.aviso = Aviso::Nada;
+                    self.nota_agregar = None;
                 }
             });
         });
+        if let Some((es_error, texto)) = &self.nota_agregar {
+            ui.add_space(4.0);
+            if *es_error {
+                aviso(ui, ERROR_FONDO, icono_error, "No se pudo agregar.", texto);
+            } else {
+                aviso(ui, marca().tinte, icono_info, "Atención.", texto);
+            }
+        }
     }
 
     fn paso_ordenar(&mut self, ui: &mut egui::Ui, ocupado: bool) {
@@ -558,6 +595,9 @@ impl App {
                                     accion = Some((i, -1));
                                 }
                             });
+                            if ui.add(boton_chico("Ver")).on_hover_text("Abrir este documento para revisarlo").clicked() {
+                                abrir(ruta);
+                            }
                             ui.add_space(4.0);
                             ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                                 ui.spacing_mut().item_spacing.y = 1.0;
@@ -575,6 +615,7 @@ impl App {
         if accion.is_some() {
             // El aviso «Listo» ya no corresponde a la lista que se ve.
             self.aviso = Aviso::Nada;
+            self.nota_agregar = None;
         }
         match accion {
             Some((i, -1)) => self.archivos.swap(i, i - 1),
@@ -596,17 +637,25 @@ impl App {
         if self.cuadros == 1 {
             let demo = std::env::var("ARMADOR_DEMO").unwrap_or_default();
             if demo != "" && demo != "ayuda" {
-                self.archivos = vec!["Nota de elevación.docx".into(), "Proyecto de ordenanza.pdf".into()];
+                // Con los documentos de demostración del repositorio la vista previa muestra páginas reales.
+                let demo_dir = Path::new("tests/datos/demo");
+                self.archivos = ["Nota de elevación.docx", "Proyecto de ordenanza.pdf"]
+                    .iter()
+                    .map(|n| if demo_dir.join(n).is_file() { demo_dir.join(n) } else { PathBuf::from(n) })
+                    .collect();
             }
             match demo.as_str() {
-                "listo" => self.aviso = Aviso::Listo("Nota de elevación - completo.pdf".into(), 14),
+                "listo" => self.aviso = Aviso::Listo("Nota de elevación - completo.pdf".into(), 4),
                 "error" => self.aviso = Aviso::Error("No se pudo guardar.".into(), "«Proyecto de ordenanza.pdf» tiene contraseña y no se puede unir. Pedí una copia sin contraseña y volvé a agregarla.".into()),
                 "avance" => self.aviso = Aviso::Avance("Pasando a PDF «Nota de elevación.docx»…".into()),
                 "ayuda" => self.en_ayuda = true,
                 _ => {}
             }
         }
-        if self.cuadros == 8 {
+        // Espera a que la vista previa termine (o un máximo) antes de capturar.
+        let lista = self.archivos.is_empty() || self.vista.total(&self.archivos).is_some();
+        if !self.capturada && ((self.cuadros >= 8 && lista) || self.cuadros > 3000) {
+            self.capturada = true;
             let ctx2 = ctx.clone();
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::ScreenshotCallback::new(move |img| {
                 let mut datos = format!("P6\n{} {}\n255\n", img.size[0], img.size[1]).into_bytes();
@@ -619,6 +668,64 @@ impl App {
             })));
         }
         ctx.request_repaint();
+    }
+}
+
+impl App {
+    fn panel_vista(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Vista previa").font(negrita(20.0)).color(TINTA));
+        let resumen = if self.archivos.is_empty() {
+            "Acá vas a ver cómo queda el PDF final.".to_string()
+        } else {
+            match self.vista.total(&self.archivos) {
+                Some(1) => "Así va a quedar el PDF final: 1 página.".to_string(),
+                Some(n) => format!("Así va a quedar el PDF final: {n} páginas."),
+                None if self.vista.hay_error(&self.archivos) => "Algunos documentos no se pueden mostrar acá, pero igual se unen.".to_string(),
+                None => "Preparando la vista previa…".to_string(),
+            }
+        };
+        ui.label(ayuda(&resumen));
+        ui.add_space(4.0);
+        egui::ScrollArea::vertical().id_salt("vista").auto_shrink([false, false]).show(ui, |ui| {
+            // Número de página dentro del PDF final; se pierde si un documento anterior todavía no se conoce.
+            let mut anteriores = Some(0usize);
+            for (i, ruta) in self.archivos.iter().enumerate() {
+                let nombre = ruta.file_name().unwrap_or_default().to_string_lossy();
+                ui.add(egui::Label::new(RichText::new(format!("{} · {nombre}", i + 1)).font(negrita(15.0)).color(TINTA)).truncate());
+                match self.vista.estado(ruta) {
+                    None | Some(vista::Estado::Preparando) => {
+                        ui.horizontal(|ui| {
+                            ui.add(egui::Spinner::new().size(18.0).color(marca().primario));
+                            ui.label(ayuda(if nucleo::es_pdf(ruta) { "Preparando…" } else { "Pasando a PDF para mostrarlo…" }));
+                        });
+                        anteriores = None;
+                    }
+                    Some(vista::Estado::Error) => {
+                        ui.label(ayuda("No se puede mostrar la vista previa de este documento."));
+                        anteriores = None;
+                    }
+                    Some(vista::Estado::Lista { paginas, total, completa }) => {
+                        for (k, pagina) in paginas.iter().enumerate() {
+                            let ancho = ui.available_width() - 14.0;
+                            let alto = ancho / pagina.aspect_ratio();
+                            Frame::new().stroke(Stroke::new(1.0, BORDE_SUAVE)).show(ui, |ui| {
+                                ui.add(egui::Image::new(pagina).fit_to_exact_size(egui::vec2(ancho, alto)));
+                            });
+                            let etiqueta = match anteriores {
+                                Some(a) => format!("Página {}", a + k + 1),
+                                None => format!("Página {} de este documento", k + 1),
+                            };
+                            ui.label(ayuda(&etiqueta));
+                        }
+                        if *completa && *total > paginas.len() {
+                            ui.label(ayuda(&format!("… y {} páginas más de este documento.", total - paginas.len())));
+                        }
+                        anteriores = if *completa { anteriores.map(|a| a + total) } else { None };
+                    }
+                }
+                ui.add_space(10.0);
+            }
+        });
     }
 }
 
@@ -636,12 +743,18 @@ impl eframe::App for App {
         }
         let arrastrando = ctx.input(|i| !i.raw.hovered_files.is_empty());
 
+        self.vista.actualizar(&ctx, &self.archivos);
         self.pestanas(ui);
         let cuerpo = Frame::new().fill(FONDO).inner_margin(Margin::same(MARGEN));
 
         if self.en_ayuda {
             egui::CentralPanel::default().frame(cuerpo).show(ui, |ui| self.pantalla_ayuda(ui));
         } else {
+            egui::Panel::right("vista")
+                .exact_size(340.0)
+                .resizable(false)
+                .frame(Frame::new().fill(SUPERFICIE).inner_margin(Margin { left: 16, right: 8, top: MARGEN, bottom: 8 }))
+                .show(ui, |ui| self.panel_vista(ui));
             egui::Panel::bottom("pie")
                 .show_separator_line(false)
                 .frame(Frame::new().fill(FONDO).inner_margin(Margin { left: MARGEN, right: MARGEN, top: 8, bottom: MARGEN }))
