@@ -12,8 +12,8 @@ Funciona en **Windows y Linux**, sin instalar nada. Desarrollado por **Horno de 
 
 | Sistema | Archivo | Cómo abrirlo |
 |---|---|---|
-| **Windows** | [ArmadorPDF-Windows.zip](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-Windows.zip) (≈ 340 MB) | Descomprimir la carpeta y abrir `Armador de PDF.exe` |
-| **Linux** | [ArmadorPDF-Linux.tar.gz](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-Linux.tar.gz) (≈ 300 MB) | Descomprimir la carpeta y abrir `armador-pdf` |
+| **Windows** | [ArmadorPDF-Windows.zip](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-Windows.zip) (≈ 250 MB) | Descomprimir la carpeta y abrir `Armador de PDF.exe` |
+| **Linux** | [ArmadorPDF-Linux.tar.xz](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-Linux.tar.xz) (≈ 170 MB) | Descomprimir la carpeta y abrir `armador-pdf` |
 
 Los paquetes pesan porque traen LibreOffice adentro, que es lo que convierte los documentos de Word. Por eso **el programa tiene que quedar siempre dentro de su carpeta**, junto a la carpeta `libreoffice`.
 
