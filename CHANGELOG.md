@@ -5,6 +5,7 @@
 - Pantalla de Inicio: botón grande para armar un documento nuevo y últimos PDF armados.
 - Pestaña Historial: todos los PDF armados, con buscador, «Abrir», «Abrir la carpeta» y «Volver a armar».
 - Reordenar con flechas o arrastrando; tacho para quitar, con «Deshacer» durante unos segundos.
+- Botones más cortos: «Agregar documento» y «Guardar PDF», con ícono.
 - Nombre del PDF editable antes de guardar; se propone la carpeta `exportaciones` del programa.
 - Vista previa en miniaturas de dos columnas, con la cantidad de páginas de cada documento.
 - «Cómo se usa» rediseñado: tres pasos ilustrados, preguntas frecuentes y qué hacer si algo no anda.

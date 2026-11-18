@@ -443,6 +443,29 @@ fn boton_icono(ui: &mut egui::Ui, icono: Icono, habilitado: bool, texto: &str) -
     resp.on_hover_text(texto)
 }
 
+/// Botón principal «Guardar PDF», con un ícono de guardado adelante.
+fn boton_guardar(ui: &mut egui::Ui, habilitado: bool) -> egui::Response {
+    let texto = "Guardar PDF";
+    let (fondo, color) = if habilitado { (marca().primario, Color32::WHITE) } else { (BORDE_SUAVE, TINTA_SUAVE) };
+    let letras = ui.painter().layout_no_wrap(texto.to_string(), negrita(18.0), color);
+    let ancho = 18.0 + 22.0 + 10.0 + letras.size().x + 18.0;
+    let (r, resp) = ui.allocate_exact_size(egui::vec2(ancho, 48.0), if habilitado { Sense::click() } else { Sense::hover() });
+    let p = ui.painter();
+    p.rect_filled(r, RADIO_MD as f32, fondo);
+    if habilitado && resp.hovered() {
+        p.rect_stroke(r, RADIO_MD as f32, Stroke::new(2.0, marca().acento), StrokeKind::Inside);
+    }
+    // Ícono de guardado (disquete).
+    let c = egui::pos2(r.left() + 18.0 + 11.0, r.center().y);
+    let v = |x: f32, y: f32| c + egui::vec2(x, y);
+    let s = Stroke::new(1.8, color);
+    trazo(p, &[v(-9.0, -9.0), v(6.0, -9.0), v(9.0, -6.0), v(9.0, 9.0), v(-9.0, 9.0), v(-9.0, -9.0)], s);
+    trazo(p, &[v(-5.0, -9.0), v(-5.0, -3.5), v(4.0, -3.5), v(4.0, -9.0)], s);
+    trazo(p, &[v(-5.5, 9.0), v(-5.5, 1.5), v(5.5, 1.5), v(5.5, 9.0)], s);
+    p.galley(egui::pos2(r.left() + 18.0 + 22.0 + 10.0, r.center().y - letras.size().y / 2.0), letras, color);
+    if habilitado { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp }
+}
+
 fn ayuda(texto: &str) -> RichText {
     RichText::new(texto).size(15.0).color(TINTA_SUAVE)
 }
@@ -823,9 +846,9 @@ impl App {
             ui.add_space(12.0);
 
             let pasos: [(u8, &str, &str); 3] = [
-                (1, "Agregá los documentos", "Tocá «Agregar documentos…» o arrastralos a la ventana. Sirven archivos PDF y de Word."),
+                (1, "Agregá los documentos", "Tocá «Agregar documento» o arrastralos a la ventana. Sirven archivos PDF y de Word."),
                 (2, "Revisá el orden", "El número 1 va al principio. Movelos con las flechas o arrastrándolos, y mirá cómo queda en la vista previa."),
-                (3, "Guardá el PDF final", "Tocá «Guardar PDF final…» y esperá el aviso «Listo». Queda anotado en el historial."),
+                (3, "Guardá el PDF final", "Tocá «Guardar PDF» y esperá el aviso «Listo». Queda anotado en el historial."),
             ];
             let separacion = 16.0;
             let ancho = ((ui.available_width() - 2.0 * separacion) / 3.0).floor();
@@ -931,7 +954,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.add_enabled_ui(!ocupado, |ui| {
                 let vacio = self.archivos.is_empty();
-                let boton = if vacio { boton_principal("+  Agregar documentos…") } else { boton_secundario("+  Agregar más documentos…") };
+                let boton = if vacio { boton_principal("+  Agregar documento") } else { boton_secundario("+  Agregar documento") };
                 if ui.add(boton).clicked() {
                     self.elegir_y_agregar();
                 }
@@ -1135,11 +1158,11 @@ impl App {
             } else if ocupado {
                 ui.add_enabled(false, boton_secundario("Guardando…"));
             } else if self.archivos.is_empty() {
-                ui.add_enabled(false, boton_secundario("Guardar PDF final…"));
+                boton_guardar(ui, false);
                 ui.add_space(8.0);
                 ui.label(ayuda("Primero agregá al menos un documento."));
             } else {
-                if ui.add(boton_principal("Guardar PDF final…")).clicked() {
+                if boton_guardar(ui, true).clicked() {
                     self.exportar(&ctx);
                 }
             }

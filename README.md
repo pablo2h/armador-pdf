@@ -29,7 +29,7 @@ Al abrirlo, la pantalla de **Inicio** tiene un botón grande para armar un docum
 
 ### 1. Agregá los documentos
 
-Tocá **Agregar documentos…** y elegí los archivos, o arrastralos desde una carpeta y soltalos sobre la ventana. Sirven archivos PDF y de Word (`.doc`, `.docx`).
+Tocá **Agregar documento** y elegí los archivos, o arrastralos desde una carpeta y soltalos sobre la ventana. Sirven archivos PDF y de Word (`.doc`, `.docx`).
 
 ### 2. Revisá el orden
 
@@ -41,7 +41,7 @@ A la derecha, la **vista previa** muestra las páginas del PDF final a medida qu
 
 ### 3. Guardá el PDF final
 
-Escribí el **nombre del PDF** (viene sugerido) y tocá **Guardar PDF final…**. Se abre la carpeta `exportaciones` del programa; ahí mismo podés elegir otra. Cuando aparece el aviso **Listo**, se puede abrir el PDF o su carpeta.
+Escribí el **nombre del PDF** (viene sugerido) y tocá **Guardar PDF**. Se abre la carpeta `exportaciones` del programa; ahí mismo podés elegir otra. Cuando aparece el aviso **Listo**, se puede abrir el PDF o su carpeta.
 
 ![Aviso de que el PDF se guardó](docs/3-listo.png)
 
