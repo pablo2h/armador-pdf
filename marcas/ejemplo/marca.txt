@@ -1,0 +1,8 @@
+# Marca de ejemplo. Para aplicarla, copiar esta carpeta junto al programa con el nombre "marca".
+nombre = Organización de ejemplo
+# Botón principal, pestaña activa y zona para soltar. Tiene que ser oscuro: lleva texto blanco.
+primario = #6B2D5C
+# Círculo con el número de cada paso.
+acento = #F2A541
+# PNG con fondo transparente; se muestra arriba a la derecha.
+logo = logo.png

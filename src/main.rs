@@ -1,22 +1,28 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod marca;
 mod nucleo;
 
 use eframe::egui;
 use egui::{Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, RichText, Stroke};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::sync::mpsc::{Receiver, channel};
 
-// --- Sistema de diseño «Armador de PDF» (base celeste del Concejo Deliberante) ---
+static MARCA: OnceLock<marca::Marca> = OnceLock::new();
+
+/// Marca activa (colores, nombre y logo de la organización).
+fn marca() -> &'static marca::Marca {
+    MARCA.get_or_init(marca::cargar)
+}
+
+// --- Sistema de diseño «Armador de PDF» ---
 const FONDO: Color32 = Color32::from_rgb(0xF4, 0xF6, 0xF8);
 const SUPERFICIE: Color32 = Color32::WHITE;
 const TINTA: Color32 = Color32::from_rgb(0x1B, 0x27, 0x33);
 const TINTA_SUAVE: Color32 = Color32::from_rgb(0x4A, 0x58, 0x66);
 const BORDE: Color32 = Color32::from_rgb(0x7A, 0x87, 0x94);
 const BORDE_SUAVE: Color32 = Color32::from_rgb(0xDD, 0xE2, 0xE8);
-const CELESTE: Color32 = Color32::from_rgb(0x29, 0x9D, 0xBE);
-const PRIMARIO: Color32 = Color32::from_rgb(0x14, 0x60, 0x7A);
-const PRIMARIO_FONDO: Color32 = Color32::from_rgb(0xE6, 0xF4, 0xF8);
 const EXITO: Color32 = Color32::from_rgb(0x1E, 0x7A, 0x46);
 const EXITO_FONDO: Color32 = Color32::from_rgb(0xE6, 0xF4, 0xEC);
 const ERROR: Color32 = Color32::from_rgb(0xB3, 0x26, 0x1E);
@@ -51,14 +57,24 @@ fn main() -> eframe::Result {
             .with_min_inner_size([680.0, 560.0]),
         ..Default::default()
     };
+    let titulo = if marca().nombre.is_empty() { "Armador de PDF".to_string() } else { format!("Armador de PDF · {}", marca().nombre) };
     eframe::run_native(
-        "Armador de PDF",
+        &titulo,
         opciones,
         Box::new(|cc| {
             aplicar_tema(&cc.egui_ctx);
-            Ok(Box::new(App::default()))
+            Ok(Box::new(App { logo: cargar_logo(&cc.egui_ctx), ..Default::default() }))
         }),
     )
+}
+
+/// Carga el logo de la marca como textura. Si falta o no se puede leer, el programa sigue sin logo.
+fn cargar_logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    let ruta = marca().logo.as_ref()?;
+    let img = image::open(ruta).ok()?.to_rgba8();
+    let tam = [img.width() as usize, img.height() as usize];
+    let color = egui::ColorImage::from_rgba_unmultiplied(tam, img.as_raw());
+    Some(ctx.load_texture("logo", color, egui::TextureOptions::LINEAR))
 }
 
 fn aplicar_tema(ctx: &egui::Context) {
@@ -92,8 +108,8 @@ fn aplicar_tema(ctx: &egui::Context) {
         st.visuals.widgets.inactive.fg_stroke.color = TINTA;
         st.visuals.widgets.hovered.fg_stroke.color = TINTA;
         st.visuals.widgets.active.fg_stroke.color = TINTA;
-        st.visuals.selection.bg_fill = PRIMARIO_FONDO;
-        st.visuals.selection.stroke.color = PRIMARIO;
+        st.visuals.selection.bg_fill = marca().tinte;
+        st.visuals.selection.stroke.color = marca().primario;
     });
 }
 
@@ -119,6 +135,7 @@ struct App {
     aviso: Aviso,
     en_ayuda: bool,
     cuadros: u32,
+    logo: Option<egui::TextureHandle>,
 }
 
 impl App {
@@ -225,7 +242,7 @@ fn abrir(ruta: &Path) {
 /// Botón principal: uno por pantalla, marca lo que hay que tocar ahora.
 fn boton_principal(texto: &str) -> egui::Button<'_> {
     egui::Button::new(RichText::new(texto).font(negrita(18.0)).color(Color32::WHITE))
-        .fill(PRIMARIO)
+        .fill(marca().primario)
         .corner_radius(CornerRadius::same(RADIO_MD))
         .min_size(egui::vec2(0.0, 48.0))
 }
@@ -253,8 +270,8 @@ fn ayuda(texto: &str) -> RichText {
 
 fn numero_de_paso(ui: &mut egui::Ui, n: u8) {
     let (r, _) = ui.allocate_exact_size(egui::vec2(32.0, 32.0), egui::Sense::hover());
-    ui.painter().circle_filled(r.center(), 16.0, CELESTE);
-    ui.painter().text(r.center(), Align2::CENTER_CENTER, n.to_string(), negrita(17.0), TINTA);
+    ui.painter().circle_filled(r.center(), 16.0, marca().acento);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, n.to_string(), negrita(17.0), marca::texto_sobre(marca().acento, TINTA));
 }
 
 fn paso(ui: &mut egui::Ui, n: u8, titulo: &str, aclaracion: &str) {
@@ -321,7 +338,7 @@ fn icono_error(ui: &mut egui::Ui) {
 }
 
 fn icono_avance(ui: &mut egui::Ui) {
-    ui.add(egui::Spinner::new().size(22.0).color(PRIMARIO));
+    ui.add(egui::Spinner::new().size(22.0).color(marca().primario));
 }
 
 // ---------------------------------------------------------------------------
@@ -338,7 +355,7 @@ impl App {
                     ui.spacing_mut().button_padding.x = 0.0;
                     for (es_ayuda, texto) in [(false, "Armar documento"), (true, "Cómo se usa")] {
                         let activa = self.en_ayuda == es_ayuda;
-                        let color = if activa { PRIMARIO } else { TINTA_SUAVE };
+                        let color = if activa { marca().primario } else { TINTA_SUAVE };
                         let r = ui.add(
                             egui::Button::new(RichText::new(texto).font(negrita(18.0)).color(color))
                                 .frame(false)
@@ -349,11 +366,18 @@ impl App {
                                 egui::pos2(r.rect.left(), r.rect.bottom() - 3.0),
                                 r.rect.right_bottom(),
                             );
-                            ui.painter().rect_filled(linea, 0.0, PRIMARIO);
+                            ui.painter().rect_filled(linea, 0.0, marca().primario);
                         }
                         if r.clicked() {
                             self.en_ayuda = es_ayuda;
                         }
+                    }
+                    if let Some(logo) = &self.logo {
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let alto = 40.0;
+                            let ancho = alto * logo.aspect_ratio();
+                            ui.add(egui::Image::new(logo).fit_to_exact_size(egui::vec2(ancho, alto)).alt_text(marca().nombre.clone()));
+                        });
                     }
                 });
             });
@@ -454,7 +478,7 @@ impl App {
             Aviso::Nada => {}
             Aviso::Avance(t) => {
                 ui.add_space(4.0);
-                aviso(ui, PRIMARIO_FONDO, icono_avance, t, "Puede tardar unos segundos.");
+                aviso(ui, marca().tinte, icono_avance, t, "Puede tardar unos segundos.");
             }
             Aviso::Listo(ruta, n) => {
                 ui.add_space(4.0);
@@ -636,10 +660,10 @@ impl eframe::App for App {
             let pintor = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("soltar")));
             pintor.rect_filled(area, 0.0, FONDO);
             let zona = area.shrink(MARGEN as f32);
-            pintor.rect_filled(zona, RADIO_MD as f32, PRIMARIO_FONDO);
+            pintor.rect_filled(zona, RADIO_MD as f32, marca().tinte);
             let p = [zona.left_top(), zona.right_top(), zona.right_bottom(), zona.left_bottom(), zona.left_top()];
-            pintor.extend(egui::Shape::dashed_line(&p, Stroke::new(3.0, PRIMARIO), 12.0, 8.0));
-            pintor.text(zona.center() - egui::vec2(0.0, 14.0), Align2::CENTER_CENTER, "Soltá los documentos acá", negrita(28.0), PRIMARIO);
+            pintor.extend(egui::Shape::dashed_line(&p, Stroke::new(3.0, marca().primario), 12.0, 8.0));
+            pintor.text(zona.center() - egui::vec2(0.0, 14.0), Align2::CENTER_CENTER, "Soltá los documentos acá", negrita(28.0), marca().primario);
             pintor.text(
                 zona.center() + egui::vec2(0.0, 22.0),
                 Align2::CENTER_CENTER,

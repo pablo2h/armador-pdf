@@ -57,6 +57,34 @@ Abrilo y andá a **Archivo → Descargar → Documento PDF (.pdf)**, y agregá e
 
 ![Instructivo dentro del programa](docs/5-ayuda.png)
 
+## Marca de la organización
+
+El programa es genérico: el nombre, los colores y el logo de quien lo usa salen de un **paquete de marca**, una carpeta llamada `marca` junto al ejecutable.
+
+```
+marca/
+  marca.txt
+  logo.png
+```
+
+```text
+nombre   = Organización de ejemplo
+primario = #6B2D5C
+acento   = #F2A541
+logo     = logo.png
+```
+
+| Clave | Dónde se usa |
+|---|---|
+| `nombre` | Título de la ventana |
+| `primario` | Botón principal, pestaña activa y zona para soltar. Tiene que ser oscuro: lleva texto blanco |
+| `acento` | Círculo con el número de cada paso. El texto encima se elige solo (blanco u oscuro) |
+| `logo` | PNG con fondo transparente, arriba a la derecha |
+
+Para aplicar otra marca alcanza con cambiar esa carpeta; no hay que recompilar. Si la carpeta no existe, el programa usa el aspecto neutro de las capturas de arriba. En [`marcas/ejemplo`](marcas/ejemplo) hay un paquete de muestra; así se ve aplicado:
+
+![El programa con la marca de ejemplo aplicada](docs/6-con-marca.png)
+
 ## Qué hace y qué no
 
 | Hace | No hace |
@@ -92,6 +120,8 @@ Si lo probás en Windows y algo no anda, por favor [abrí un aviso](https://gith
 ```
 src/nucleo.rs    conversión, unión, historial y pruebas (sin interfaz)
 src/main.rs      la ventana y el sistema de diseño
+src/marca.rs     lectura del paquete de marca
+marcas/          paquetes de marca listos para usar
 assets/          tipografía
 tests/datos/     documentos de Word para las pruebas
 docs/            capturas de este README
@@ -119,7 +149,7 @@ cargo build --release --target x86_64-pc-windows-gnu
 cargo test --release
 ```
 
-Son siete pruebas: formatos aceptados, orden de las páginas, tamaño de página heredado, documento repetido, errores, que los originales no se toquen y una prueba de punta a punta que pasa un `.docx` y un `.doc` a PDF con LibreOffice real y los une con otro PDF. Esa última se omite si LibreOffice no está instalado.
+Son doce pruebas: lectura y contraste de la marca, formatos aceptados, orden de las páginas, tamaño de página heredado, documento repetido, errores, que los originales no se toquen y una prueba de punta a punta que pasa un `.docx` y un `.doc` a PDF con LibreOffice real y los une con otro PDF. Esa última se omite si LibreOffice no está instalado.
 
 En cada cambio, GitHub las corre automáticamente **en Linux y en Windows**, con LibreOffice instalado en ambos: es la pestaña [Actions](https://github.com/pablo2h/armador-pdf/actions).
 
@@ -134,7 +164,7 @@ armador-pdf --salida final.pdf nota.docx proyecto.pdf
 Las imágenes de este README las genera el propio programa:
 
 ```bash
-ARMADOR_DEMO=lista ARMADOR_CAPTURA=captura.ppm armador-pdf
+ARMADOR_MARCA=marcas/ejemplo ARMADOR_DEMO=lista ARMADOR_CAPTURA=captura.ppm armador-pdf
 ```
 
 `ARMADOR_DEMO` admite `lista`, `listo`, `error`, `avance` y `ayuda`.

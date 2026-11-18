@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## 0.4.0 · 18/11/2026
+
+- Paquetes de marca: nombre, colores y logo de la organización se leen de la carpeta `marca/`, sin recompilar.
+- Paquete de marca de ejemplo en `marcas/ejemplo`.
+- El texto sobre el color de acento se elige solo para que siempre se lea.
+
 ## 0.3.0 · 18/11/2026
 
 - El programa lleva un historial: cada PDF armado queda anotado en `historial.txt`, en su carpeta.
