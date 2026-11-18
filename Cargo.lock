@@ -234,8 +234,9 @@ dependencies = [
 
 [[package]]
 name = "armador-pdf"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
+ "chrono",
  "eframe",
  "lopdf",
  "rfd",

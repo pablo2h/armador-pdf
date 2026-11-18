@@ -1,0 +1,52 @@
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    name: ${{ matrix.nombre }}
+    runs-on: ${{ matrix.sistema }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: Linux
+            sistema: ubuntu-latest
+          - nombre: Windows
+            sistema: windows-latest
+    env:
+      # La prueba de conversión de Word falla si LibreOffice no está, en vez de omitirse.
+      ARMADOR_EXIGIR_LIBREOFFICE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar LibreOffice (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer
+
+      - name: Instalar LibreOffice (Windows)
+        if: runner.os == 'Windows'
+        run: choco install libreoffice-fresh -y --no-progress
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Pruebas automáticas
+        run: cargo test --release
+
+      - name: Compilar el programa
+        run: cargo build --release
+
+      - name: Guardar el ejecutable
+        uses: actions/upload-artifact@v4
+        with:
+          name: armador-pdf-${{ matrix.nombre }}
+          path: |
+            target/release/armador-pdf
+            target/release/armador-pdf.exe
+          if-no-files-found: error

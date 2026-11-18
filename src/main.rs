@@ -386,8 +386,14 @@ impl App {
                     });
                 });
             }
-            let notas: [(&str, &[&str]); 2] = [
-                ("Si el documento está en Google Docs", &["Abrilo y andá a Archivo → Descargar → Microsoft Word (.docx). Después agregá ese archivo en el paso 1."]),
+            let notas: [(&str, &[&str]); 3] = [
+                ("Si el documento está en Google Docs", &[
+                    "Abrilo y andá a Archivo → Descargar → Documento PDF (.pdf). Después agregá ese archivo en el paso 1.",
+                    "Si necesitás seguir editándolo en Word, también podés descargarlo como Microsoft Word (.docx): el programa lo pasa a PDF solo.",
+                ]),
+                ("Historial", &[
+                    "Cada PDF que armás queda anotado en el archivo «historial.txt», en la carpeta del programa: fecha, dónde se guardó y con qué documentos.",
+                ]),
                 ("Para tener en cuenta", &[
                     "Los documentos originales nunca se modifican ni se borran.",
                     "Si un PDF tiene contraseña no se puede unir: pedí una copia sin contraseña.",
@@ -542,6 +548,10 @@ impl App {
                 });
             }
         });
+        if accion.is_some() {
+            // El aviso «Listo» ya no corresponde a la lista que se ve.
+            self.aviso = Aviso::Nada;
+        }
         match accion {
             Some((i, -1)) => self.archivos.swap(i, i - 1),
             Some((i, 1)) => self.archivos.swap(i, i + 1),
@@ -566,8 +576,8 @@ impl App {
             }
             match demo.as_str() {
                 "listo" => self.aviso = Aviso::Listo("Nota de elevación - completo.pdf".into(), 14),
-                "error" => self.aviso = Aviso::Error("No se pudo guardar.".into(), "«Proyecto de ordenanza.pdf» está protegido con contraseña y no se puede unir.".into()),
-                "avance" => self.aviso = Aviso::Avance("Convirtiendo «Nota de elevación.docx» a PDF…".into()),
+                "error" => self.aviso = Aviso::Error("No se pudo guardar.".into(), "«Proyecto de ordenanza.pdf» tiene contraseña y no se puede unir. Pedí una copia sin contraseña y volvé a agregarla.".into()),
+                "avance" => self.aviso = Aviso::Avance("Pasando a PDF «Nota de elevación.docx»…".into()),
                 "ayuda" => self.en_ayuda = true,
                 _ => {}
             }
