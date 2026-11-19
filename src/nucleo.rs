@@ -38,12 +38,42 @@ pub fn es_aceptado(p: &Path) -> bool {
 // LibreOffice
 // ---------------------------------------------------------------------------
 
+/// En macOS el programa va dentro de «Armador de PDF.app». Si es así, devuelve su carpeta `Contents`.
+fn paquete_de_mac() -> Option<PathBuf> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let exe = std::env::current_exe().ok()?;
+    let macos = exe.parent()?;
+    let contents = macos.parent()?;
+    (macos.file_name()? == "MacOS" && contents.file_name()? == "Contents").then(|| contents.to_path_buf())
+}
+
+/// Carpeta con lo que acompaña al programa (LibreOffice y la marca): junto al ejecutable,
+/// o `Contents/Resources` dentro del paquete de macOS.
+pub fn carpeta_de_recursos() -> Option<PathBuf> {
+    if let Some(contents) = paquete_de_mac() {
+        return Some(contents.join("Resources"));
+    }
+    Some(std::env::current_exe().ok()?.parent()?.to_path_buf())
+}
+
+/// Carpeta de la persona en macOS, donde el programa escribe: el paquete `.app` puede ser de solo lectura.
+fn carpeta_personal_de_mac(partes: &[&str]) -> Option<PathBuf> {
+    paquete_de_mac()?;
+    let mut carpeta = PathBuf::from(std::env::var_os("HOME")?);
+    carpeta.extend(partes);
+    std::fs::create_dir_all(&carpeta).ok()?;
+    Some(carpeta)
+}
+
 /// Busca LibreOffice: primero junto al ejecutable (modo portable), después en el sistema.
 pub fn buscar_libreoffice() -> Option<PathBuf> {
     let exe = if cfg!(windows) { "soffice.exe" } else { "soffice" };
 
-    if let Some(base) = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf)) {
+    if let Some(base) = carpeta_de_recursos() {
         let candidatos = [
+            base.join("LibreOffice.app").join("Contents").join("MacOS").join(exe),
             base.join("libreoffice").join("program").join(exe),
             base.join("LibreOfficePortable").join("App").join("libreoffice").join("program").join(exe),
             base.join("libreoffice").join("App").join("libreoffice").join("program").join(exe),
@@ -335,6 +365,9 @@ pub fn ruta_del_historial() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("ARMADOR_HISTORIAL") {
         return Some(PathBuf::from(p));
     }
+    if let Some(carpeta) = carpeta_personal_de_mac(&["Library", "Application Support", "Armador de PDF"]) {
+        return Some(carpeta.join("historial.txt"));
+    }
     Some(std::env::current_exe().ok()?.parent()?.join("historial.txt"))
 }
 
@@ -402,7 +435,11 @@ pub fn vaciar_historial() {
 }
 
 /// Carpeta «exportaciones» junto al programa: es donde se propone guardar los PDF.
+/// En macOS es `Documentos/Armador de PDF`.
 pub fn carpeta_de_exportaciones() -> Option<PathBuf> {
+    if let Some(carpeta) = carpeta_personal_de_mac(&["Documents", "Armador de PDF"]) {
+        return Some(carpeta);
+    }
     let carpeta = std::env::current_exe().ok()?.parent()?.join("exportaciones");
     std::fs::create_dir_all(&carpeta).ok()?;
     Some(carpeta)

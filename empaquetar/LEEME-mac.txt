@@ -1,0 +1,21 @@
+ARMADOR DE PDF - para macOS
+
+Cómo se usa
+1. Arrastrá "Armador de PDF" a la carpeta Aplicaciones (o dejalo donde quieras).
+2. Abrilo. La primera vez macOS avisa que no puede verificar el programa, porque
+   todavía no tiene firma de Apple. Para permitirlo:
+   - Tocá "Listo" en el aviso.
+   - Abrí Ajustes del Sistema > Privacidad y seguridad, bajá hasta el final
+     y tocá "Abrir igualmente".
+   En versiones anteriores de macOS alcanza con clic derecho sobre el programa > Abrir.
+   Se hace una sola vez.
+3. Seguí los tres pasos de la pantalla. La pestaña "Cómo se usa" tiene el instructivo.
+
+Para tener en cuenta
+- Acepta archivos PDF y de Word (.doc y .docx). Los de Word se pasan a PDF solos.
+- La primera vez que se pasa un Word a PDF puede tardar hasta un minuto.
+- Los documentos originales nunca se modifican.
+- Los PDF se proponen guardar en Documentos > Armador de PDF; se puede elegir otra carpeta.
+
+El programa trae adentro LibreOffice (The Document Foundation), que se distribuye
+bajo licencia MPL 2.0.

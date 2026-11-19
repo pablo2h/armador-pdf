@@ -1,0 +1,74 @@
+name: Paquete para macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión publicada a la que se suben los paquetes (vacío: no se suben)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  paquete:
+    name: ${{ matrix.sufijo }}
+    runs-on: ${{ matrix.sistema }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sufijo: AppleSilicon
+            sistema: macos-latest
+          - sufijo: Intel
+            sistema: macos-15-intel
+    env:
+      ARMADOR_EXIGIR_LIBREOFFICE: "1"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar LibreOffice
+        run: brew install --cask libreoffice
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Pruebas automáticas
+        run: cargo test --release
+
+      - name: Armar el paquete
+        run: bash empaquetar/mac.sh ${{ matrix.sufijo }}
+
+      - name: Probar el paquete ya descomprimido (Word a PDF con el LibreOffice de adentro)
+        run: |
+          mkdir prueba
+          ditto -x -k "dist/ArmadorPDF-macOS-${{ matrix.sufijo }}.zip" prueba
+          sudo mv /Applications/LibreOffice.app /Applications/LibreOffice-aparte.app
+          "prueba/ArmadorPDF-macOS/Armador de PDF.app/Contents/MacOS/armador-pdf" \
+            --salida prueba/final.pdf "tests/datos/demo/Nota de elevación.docx" "tests/datos/demo/Proyecto de ordenanza.pdf"
+          file prueba/final.pdf | grep -q "PDF document"
+
+      - name: Captura de la ventana
+        continue-on-error: true
+        run: |
+          ARMADOR_CAPTURA=prueba/captura.ppm ARMADOR_DEMO=lista \
+            perl -e 'alarm 90; exec @ARGV' "prueba/ArmadorPDF-macOS/Armador de PDF.app/Contents/MacOS/armador-pdf"
+
+      - name: Qué dice macOS de un paquete recién descargado
+        continue-on-error: true
+        run: |
+          xattr -w com.apple.quarantine "0081;00000000;Safari;" "prueba/ArmadorPDF-macOS/Armador de PDF.app"
+          spctl --assess --type execute -vv "prueba/ArmadorPDF-macOS/Armador de PDF.app" || true
+          spctl --assess --type execute -vv "prueba/ArmadorPDF-macOS/Armador de PDF.app/Contents/Resources/LibreOffice.app" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: captura-${{ matrix.sufijo }}
+          path: prueba/captura.ppm
+          if-no-files-found: ignore
+
+      - name: Subir a la versión publicada
+        if: inputs.version != ''
+        run: gh release upload "${{ inputs.version }}" "dist/ArmadorPDF-macOS-${{ matrix.sufijo }}.zip" --clobber

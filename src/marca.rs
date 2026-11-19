@@ -103,7 +103,7 @@ pub fn interpretar(texto: &str, carpeta: &Path) -> Marca {
 pub fn cargar() -> Marca {
     let carpeta = std::env::var_os("ARMADOR_MARCA")
         .map(PathBuf::from)
-        .or_else(|| Some(std::env::current_exe().ok()?.parent()?.join("marca")));
+        .or_else(|| Some(crate::nucleo::carpeta_de_recursos()?.join("marca")));
     let Some(carpeta) = carpeta else { return Marca::default() };
     match std::fs::read_to_string(carpeta.join("marca.txt")) {
         Ok(texto) => interpretar(&texto, &carpeta),

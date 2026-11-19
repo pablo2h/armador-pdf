@@ -883,7 +883,7 @@ impl App {
                 ("Si algo no anda", [
                     ("Un PDF tiene contraseña", "No se puede unir. Pedí una copia sin contraseña y volvé a agregarla."),
                     ("Tarda mucho", "La primera vez que se pasa un Word a PDF puede tardar hasta un minuto."),
-                    ("¿Dónde quedan los PDF?", "Se propone la carpeta «exportaciones» del programa, pero al guardar podés elegir cualquier otra."),
+                    ("¿Dónde quedan los PDF?", if cfg!(target_os = "macos") { "Se propone la carpeta «Armador de PDF» dentro de Documentos, pero al guardar podés elegir cualquier otra." } else { "Se propone la carpeta «exportaciones» del programa, pero al guardar podés elegir cualquier otra." }),
                 ]),
             ];
             let ancho = ((ui.available_width() - separacion) / 2.0).floor();
@@ -1168,7 +1168,11 @@ impl App {
             }
         });
         if pide_nombre {
-            ui.label(ayuda("Al guardar se abre la carpeta «exportaciones» del programa; ahí podés elegir otra."));
+            ui.label(ayuda(if cfg!(target_os = "macos") {
+                "Al guardar se abre la carpeta «Armador de PDF» de Documentos; ahí podés elegir otra."
+            } else {
+                "Al guardar se abre la carpeta «exportaciones» del programa; ahí podés elegir otra."
+            }));
         }
         match &self.aviso {
             Aviso::Nada => {}

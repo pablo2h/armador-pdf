@@ -18,6 +18,8 @@ jobs:
             sistema: ubuntu-latest
           - nombre: Windows
             sistema: windows-latest
+          - nombre: macOS
+            sistema: macos-latest
     env:
       # La prueba de conversión de Word falla si LibreOffice no está, en vez de omitirse.
       ARMADOR_EXIGIR_LIBREOFFICE: "1"
@@ -33,6 +35,10 @@ jobs:
       - name: Instalar LibreOffice (Windows)
         if: runner.os == 'Windows'
         run: choco install libreoffice-fresh -y --no-progress
+
+      - name: Instalar LibreOffice (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask libreoffice
 
       - uses: Swatinem/rust-cache@v2
 
