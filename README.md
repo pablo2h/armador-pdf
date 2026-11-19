@@ -4,7 +4,7 @@
 
 Programa de escritorio para oficina que **junta varios documentos en un solo PDF**: por ejemplo, una nota y el proyecto que la acompaña. Si algún documento está en Word, lo pasa a PDF solo.
 
-Funciona en **Windows y Linux**, sin instalar nada. Desarrollado por **Horno de Barro**.
+Funciona en **Windows, Linux y macOS**, sin instalar nada. Desarrollado por **Horno de Barro**.
 
 ![Armar documento, con la lista y la vista previa](docs/2-lista.png)
 
@@ -14,10 +14,14 @@ Funciona en **Windows y Linux**, sin instalar nada. Desarrollado por **Horno de 
 |---|---|---|
 | **Windows** | [ArmadorPDF-Windows.zip](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-Windows.zip) (≈ 250 MB) | Descomprimir la carpeta y abrir `Armador de PDF.exe` |
 | **Linux** | [ArmadorPDF-Linux.tar.xz](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-Linux.tar.xz) (≈ 170 MB) | Descomprimir la carpeta y abrir `armador-pdf` |
+| **macOS** (Apple Silicon: M1 en adelante) | [ArmadorPDF-macOS-AppleSilicon.zip](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-macOS-AppleSilicon.zip) | Descomprimir y abrir `Armador de PDF` |
+| **macOS** (Intel) | [ArmadorPDF-macOS-Intel.zip](https://github.com/pablo2h/armador-pdf/releases/latest/download/ArmadorPDF-macOS-Intel.zip) | Descomprimir y abrir `Armador de PDF` |
 
 Los paquetes pesan porque traen LibreOffice adentro, que es lo que convierte los documentos de Word. Por eso **el programa tiene que quedar siempre dentro de su carpeta**, junto a la carpeta `libreoffice`.
 
 > **Aviso de Windows.** El programa todavía no está firmado digitalmente, así que al abrirlo Windows puede mostrar «Windows protegió su PC». Tocá **Más información** y después **Ejecutar de todas formas**.
+
+> **Aviso de macOS.** Por la misma razón, la primera vez macOS dice que no puede verificar el programa. Tocá **Listo**, abrí **Ajustes del Sistema → Privacidad y seguridad**, bajá hasta el final y tocá **Abrir igualmente**. Se hace una sola vez. Para saber qué Mac tenés: menú  → **Acerca de esta Mac**; si dice «Chip Apple M…» es Apple Silicon, si dice «Procesador Intel» es Intel. En macOS los PDF se proponen guardar en `Documentos/Armador de PDF`.
 
 Todas las versiones están en [Releases](https://github.com/pablo2h/armador-pdf/releases), y los cambios de cada una en el [historial de cambios](CHANGELOG.md).
 

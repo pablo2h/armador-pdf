@@ -9,6 +9,7 @@
 - Nombre del PDF editable antes de guardar; se propone la carpeta `exportaciones` del programa.
 - Vista previa en miniaturas de dos columnas, con la cantidad de páginas de cada documento.
 - «Cómo se usa» rediseñado: tres pasos ilustrados, preguntas frecuentes y qué hacer si algo no anda.
+- 19/11/2026: se suma el paquete para macOS (Apple Silicon e Intel). Windows y Linux no cambian.
 
 ## 0.5.0 · 18/11/2026
 
