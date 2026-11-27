@@ -59,11 +59,22 @@ fn main() -> eframe::Result {
         return Ok(());
     }
 
+    // En Windows se dibuja con OpenGL: con algunos controladores de Intel el de Vulkan
+    // (el que usa wgpu por defecto) se cae al arrancar. `ARMADOR_MOTOR=wgpu` o `=opengl`
+    // permite elegir el otro a mano en cualquier sistema.
+    let motor = match std::env::var("ARMADOR_MOTOR").ok().as_deref() {
+        Some("opengl") => eframe::Renderer::Glow,
+        Some("wgpu") => eframe::Renderer::Wgpu,
+        _ if cfg!(target_os = "windows") => eframe::Renderer::Glow,
+        _ => eframe::Renderer::Wgpu,
+    };
+
     let opciones = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1120.0, 680.0])
             .with_min_inner_size([1000.0, 580.0])
             .with_icon(icono_de_ventana()),
+        renderer: motor,
         ..Default::default()
     };
     let titulo = if marca().nombre.is_empty() { "Armador de PDF".to_string() } else { format!("Armador de PDF · {}", marca().nombre) };
@@ -76,6 +87,14 @@ fn main() -> eframe::Result {
         }),
     );
     nucleo::limpiar_temporal();
+    if let Err(e) = &resultado {
+        // Sin consola en Windows: si la ventana no pudo abrirse, que se vea por qué.
+        rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Error)
+            .set_title("Armador de PDF")
+            .set_description(format!("No se pudo abrir la ventana del programa.\n\nDetalle: {e}"))
+            .show();
+    }
     resultado
 }
 

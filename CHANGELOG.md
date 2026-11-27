@@ -1,5 +1,10 @@
 # Historial de cambios
 
+## 0.6.1 · 27/11/2026
+
+- Windows: el programa ya no se cierra al abrir en equipos donde falla el controlador Vulkan de la placa de video (visto en Intel UHD 630). Ahora dibuja con OpenGL.
+- Si la ventana no puede abrirse, aparece un cartel con el motivo en vez de cerrarse sin avisar.
+
 ## 0.6.0 · 18/11/2026
 
 - Pantalla de Inicio: botón grande para armar un documento nuevo y últimos PDF armados.
